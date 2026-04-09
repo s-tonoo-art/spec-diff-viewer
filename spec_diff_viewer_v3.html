@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>諸元差分ビューア v3</title>
+<style>
+  :root {
+    --bg:     #0d1117;
+    --panel:  #161b22;
+    --panel2: #1c2128;
+    --border: #30363d;
+    --text:   #e6edf3;
+    --muted:  #8b949e;
+    --a-color: #58a6ff;
+    --b-color: #f85149;
+    --a-bg: rgba(88,166,255,0.08);
+    --b-bg: rgba(248,81,73,0.08);
+    /* ステータス色（指定通り） */
+    --c-del:  #58a6ff;   /* 削除＝青  */
+    --c-new:  #f85149;   /* 追加＝赤  */
+    --c-chg:  #d2a8ff;   /* 変更＝紫  */
+    --c-same: #e6edf3;   /* 維持＝白（指定） */
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: 'Hiragino Kaku Gothic ProN','Meiryo','Yu Gothic',sans-serif;
+    font-size: 15px; line-height: 1.7; min-height: 100vh;
+  }
+
+  /* BADGES */
+  .badge {
+    display: inline-flex; align-items: center;
+    padding: 3px 11px; border-radius: 999px;
+    font-size: 13px; font-weight: 700; white-space: nowrap;
+  }
+  .badge-del  { background:rgba(88,166,255,.15); color:var(--c-del);  border:1px solid rgba(88,166,255,.4); }
+  .badge-new  { background:rgba(248,81,73,.15);  color:var(--c-new);  border:1px solid rgba(248,81,73,.4);  }
+  .badge-chg  { background:rgba(210,168,255,.15);color:var(--c-chg);  border:1px solid rgba(210,168,255,.4);}
+  .badge-same { background:rgba(230,237,243,.08); color:var(--c-same); border:1px solid rgba(230,237,243,.55); }
+  .badge-a    { background:rgba(88,166,255,.15); color:var(--a-color);border:1px solid rgba(88,166,255,.35);}
+  .badge-b    { background:rgba(248,81,73,.15);  color:var(--b-color);border:1px solid rgba(248,81,73,.35); }
+
+  /* UPLOAD SCREEN */
+  #upload-screen {
+    min-height:100vh; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; padding:32px;
+  }
+  #upload-screen h1 { font-size:22px; font-weight:700; margin-bottom:8px; }
+  #upload-screen p  { color:var(--muted); margin-bottom:32px; font-size:15px; text-align:center; }
+  .upload-grid {
+    display:grid; grid-template-columns:1fr 1fr;
+    gap:24px; width:100%; max-width:720px; margin-bottom:28px;
+  }
+  .upload-box {
+    background:var(--panel); border:2px dashed var(--border);
+    border-radius:14px; padding:32px 20px; text-align:center; cursor:pointer;
+    transition:border-color .2s, background .2s, transform .15s;
+  }
+  .upload-box.drag-over { transform:scale(1.03); }
+  .upload-box.a-side            { border-color:rgba(88,166,255,.4); }
+  .upload-box.b-side            { border-color:rgba(248,81,73,.4); }
+  .upload-box.a-side:hover, .upload-box.a-side.drag-over { border-color:var(--a-color); background:rgba(88,166,255,.05); }
+  .upload-box.b-side:hover, .upload-box.b-side.drag-over { border-color:var(--b-color); background:rgba(248,81,73,.05);  }
+  .upload-box.loaded.a-side { border-style:solid; border-color:var(--a-color); background:var(--a-bg); }
+  .upload-box.loaded.b-side { border-style:solid; border-color:var(--b-color); background:var(--b-bg); }
+  .upload-label { font-size:13px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; margin-bottom:8px; }
+  .upload-label.a { color:var(--a-color); }
+  .upload-label.b { color:var(--b-color); }
+  .upload-icon { font-size:36px; margin-bottom:8px; }
+  .upload-hint { font-size:13px; color:var(--muted); }
+  .upload-filename { font-size:13px; color:var(--muted); margin-top:8px; word-break:break-all; }
+  .upload-filename.loaded { color:#3fb950; }
+  input[type="file"] { display:none; }
+  .run-btn {
+    background:var(--a-color); color:#0d1117; border:none; border-radius:8px;
+    padding:14px 44px; font-size:16px; font-weight:700; cursor:pointer;
+    opacity:.35; transition:opacity .2s, background .2s;
+  }
+  .run-btn.ready          { opacity:1; }
+  .run-btn.ready:hover    { background:#79c0ff; }
+
+  /* VIEWER */
+  #viewer-screen { display:none; }
+  header {
+    background:var(--panel); border-bottom:1px solid var(--border);
+    padding:14px 24px; display:flex; align-items:center; gap:14px;
+    position:sticky; top:0; z-index:100; flex-wrap:wrap;
+  }
+  header h1      { font-size:17px; font-weight:700; }
+  header .subtitle { font-size:13px; color:var(--muted); margin-top:2px; }
+  .header-right  { display:flex; gap:8px; align-items:center; margin-left:auto; flex-wrap:wrap; }
+  .reload-btn {
+    background:transparent; color:var(--muted); border:1px solid var(--border);
+    border-radius:6px; padding:5px 12px; font-size:13px; cursor:pointer;
+    transition:color .2s, border-color .2s;
+  }
+  .reload-btn:hover { color:var(--text); border-color:var(--text); }
+
+  main { padding:24px; max-width:1400px; margin:0 auto; }
+  .section { margin-bottom:36px; }
+  .section-title {
+    font-size:13px; font-weight:700; letter-spacing:.1em;
+    text-transform:uppercase; color:var(--muted);
+    border-bottom:1px solid var(--border);
+    padding-bottom:10px; margin-bottom:18px;
+    display:flex; align-items:center; gap:8px;
+  }
+
+  .legend {
+    display:flex; gap:14px; flex-wrap:wrap;
+    padding:10px 16px; background:var(--panel);
+    border:1px solid var(--border); border-radius:8px;
+    margin-bottom:20px; font-size:13px;
+  }
+  .legend-item { display:flex; align-items:center; gap:5px; color:var(--muted); }
+
+  .summary-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:12px; margin-bottom:8px; }
+  .summary-card { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:18px; }
+  .summary-card .lbl { font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; }
+  .summary-card .val { font-size:19px; font-weight:700; margin-top:6px; }
+  .summary-card .sub { font-size:13px; color:var(--muted); margin-top:4px; }
+
+  .copy-block {
+    background:var(--panel2); border:1px solid var(--border);
+    border-radius:10px; padding:18px; margin-top:16px; position:relative;
+  }
+  .copy-block pre {
+    font-family:'Courier New',monospace; font-size:13px; color:var(--text);
+    white-space:pre-wrap; word-break:break-word; line-height:1.7;
+  }
+  .copy-btn {
+    position:absolute; top:12px; right:12px;
+    background:var(--a-color); color:#0d1117; border:none; border-radius:6px;
+    padding:6px 16px; font-size:13px; font-weight:700; cursor:pointer; transition:background .2s;
+  }
+  .copy-btn:hover  { background:#79c0ff; }
+  .copy-btn.copied { background:#3fb950; }
+
+  .diff-table { width:100%; border-collapse:collapse; font-size:14px; }
+  .diff-table th {
+    text-align:left; padding:10px 14px; font-size:12px;
+    text-transform:uppercase; letter-spacing:.08em; color:var(--muted);
+    border-bottom:1px solid var(--border); background:var(--panel); white-space:nowrap;
+  }
+  .diff-table td { padding:9px 14px; border-bottom:1px solid rgba(48,54,61,.5); vertical-align:middle; }
+  .diff-table tr:hover td { background:rgba(255,255,255,.02); }
+  .diff-table tr.row-del td { background:rgba(88,166,255,.04); }
+  .diff-table tr.row-new td { background:rgba(248,81,73,.04);  }
+
+  .val-del   { color:var(--c-del);  }
+  .val-new   { color:var(--c-new);  }
+  .val-chg   { color:var(--c-chg);  }
+  .val-same  { color:var(--c-same); }
+  .val-muted { color:var(--muted);  }
+
+  .info-row {
+    display:flex; align-items:flex-start; gap:12px; margin-bottom:10px;
+    padding:10px 14px; background:var(--panel); border:1px solid var(--border);
+    border-radius:8px; font-size:14px; flex-wrap:wrap;
+  }
+  .info-key   { color:var(--muted); min-width:130px; }
+  .info-val-a { color:var(--a-color); }
+  .info-val-b { color:var(--b-color); }
+
+  .mu-compare-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  .mu-panel { background:var(--panel); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+  .mu-panel-header {
+    padding:12px 16px; font-size:13px; font-weight:700; letter-spacing:.08em;
+    display:flex; align-items:center; gap:8px;
+  }
+  .mu-panel-header.a-hdr { background:var(--a-bg); border-bottom:1px solid rgba(88,166,255,.2); color:var(--a-color); }
+  .mu-panel-header.b-hdr { background:var(--b-bg); border-bottom:1px solid rgba(248,81,73,.2);  color:var(--b-color); }
+
+  .mu-item { border:1px solid var(--border); border-radius:8px; margin:12px; overflow:hidden; }
+  .mu-item-header {
+    padding:10px 14px; display:flex; align-items:center; gap:8px;
+    font-weight:700; font-size:15px; cursor:pointer;
+    background:rgba(255,255,255,.02); border-bottom:1px solid var(--border); user-select:none;
+  }
+  .mu-item-header:hover { background:rgba(255,255,255,.04); }
+  .mu-item-body { padding:12px 14px; }
+  .mu-row { display:flex; gap:10px; margin-bottom:6px; font-size:14px; }
+  .mu-key { color:var(--muted); min-width:110px; flex-shrink:0; }
+  .mu-val { color:var(--text); }
+
+  /* MU absent placeholder */
+  .mu-absent {
+    margin:12px; border:1px dashed rgba(48,54,61,.8);
+    border-radius:8px; padding:18px 14px;
+    color:var(--muted); font-size:14px; text-align:center;
+    background:rgba(255,255,255,.01);
+  }
+  .mu-absent-name { font-weight:700; font-size:16px; color:var(--border); margin-bottom:6px; }
+  .mu-absent-msg  { font-size:13px; }
+
+  .device-chip {
+    display:inline-flex; align-items:center; gap:4px;
+    background:rgba(255,255,255,.05); border:1px solid var(--border);
+    border-radius:5px; padding:3px 10px; margin:2px; font-size:13px;
+  }
+  .device-chip.del { background:rgba(88,166,255,.1);  border-color:rgba(88,166,255,.4); color:var(--c-del); }
+  .device-chip.add { background:rgba(248,81,73,.1);   border-color:rgba(248,81,73,.4);  color:var(--c-new); }
+
+  .chevron { display:inline-block; transition:transform .2s; font-size:12px; color:var(--muted); }
+  .chevron.open { transform:rotate(90deg); }
+  .collapse-body { display:none; }
+  .collapse-body.open { display:block; }
+
+  @media (max-width:700px) {
+    .mu-compare-grid, .upload-grid { grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- UPLOAD -->
+<div id="upload-screen">
+  <h1>📡 諸元差分ビューア <span style="font-size:14px;font-weight:400;color:var(--muted);margin-left:8px">v3.1</span></h1>
+  <p>A（現行）とB（今回PJ反映後）のJSONを<br>クリックまたはドラッグ＆ドロップで選択</p>
+  <p style="font-size:12px;color:var(--muted);margin-top:-16px;margin-bottom:24px">このビューアーは、差分をシンプルに見せます。複雑なのは業務であって、画面までそうである必要はありません。</p>
+  <div class="upload-grid">
+    <div class="upload-box a-side" id="box-a"
+         onclick="document.getElementById('file-a').click()"
+         ondragover="onDragOver(event,'a')" ondragleave="onDragLeave('a')" ondrop="onDrop(event,'A')">
+      <div class="upload-icon">📂</div>
+      <div class="upload-label a">A — 現行諸元</div>
+      <div class="upload-hint">クリック または D&amp;D</div>
+      <div class="upload-filename" id="fname-a">ファイル未選択</div>
+    </div>
+    <input type="file" id="file-a" accept=".json" onchange="onFileInput(this,'A')">
+
+    <div class="upload-box b-side" id="box-b"
+         onclick="document.getElementById('file-b').click()"
+         ondragover="onDragOver(event,'b')" ondragleave="onDragLeave('b')" ondrop="onDrop(event,'B')">
+      <div class="upload-icon">📂</div>
+      <div class="upload-label b">B — 今回PJ反映後</div>
+      <div class="upload-hint">クリック または D&amp;D</div>
+      <div class="upload-filename" id="fname-b">ファイル未選択</div>
+    </div>
+    <input type="file" id="file-b" accept=".json" onchange="onFileInput(this,'B')">
+  </div>
+  <button class="run-btn" id="run-btn" disabled onclick="runDiff()">差分を表示する →</button>
+</div>
+
+<!-- VIEWER -->
+<div id="viewer-screen">
+  <header>
+    <div>
+      <h1 id="hdr-title">📡 諸元差分ビューア</h1>
+      <div class="subtitle" id="hdr-sub">—</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:2px">v3.1</div>
+    </div>
+    <div class="header-right">
+      <span class="badge badge-a" id="hdr-badge-a">A</span>
+      <span style="color:var(--muted);font-size:20px">→</span>
+      <span class="badge badge-b" id="hdr-badge-b">B</span>
+      <button class="reload-btn" onclick="resetToUpload()">⟲ 再選択</button>
+    </div>
+  </header>
+  <main>
+    <div class="legend">
+      <span class="legend-item"><span class="badge badge-del">撤去</span>A→Bで消えた</span>
+      <span class="legend-item"><span class="badge badge-new">新設</span>A→Bで増えた</span>
+      <span class="legend-item"><span class="badge badge-chg">変更</span>値が変わった</span>
+      <span class="legend-item"><span class="badge badge-same">既設</span>変化なし</span>
+    </div>
+
+    <div class="section">
+      <div class="section-title">📊 変化サマリー</div>
+      <div class="summary-grid" id="summary-cards"></div>
+      <div class="copy-block">
+        <button class="copy-btn" id="copy-btn" onclick="copySummary()">📋 コピー</button>
+        <pre id="summary-text"></pre>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">🗂 諸元ヘッダー</div>
+      <div id="head-section"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">📻 無線機グループリスト (MU)</div>
+      <div class="mu-compare-grid" id="mu-section"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">📡 RU（無線機子機）一覧</div>
+      <table class="diff-table">
+        <thead><tr><th>RU名</th><th>状態</th><th>A 機種</th><th>B 機種</th></tr></thead>
+        <tbody id="ru-tbody"></tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <div class="section-title">🔺 アンテナリスト</div>
+      <table class="diff-table">
+        <thead><tr>
+          <th>ANT名</th><th>状態</th><th>機種</th>
+          <th>方位角(°)</th><th>高さ(m)</th><th>M-tilt(°)</th><th>対応バンド</th><th>座標</th>
+        </tr></thead>
+        <tbody id="ant-tbody"></tbody>
+      </table>
+      <div style="margin-top:14px">
+        <div class="section-title" style="font-size:12px;border:none;margin-bottom:10px">セクター紐付け (sectorAntennas)</div>
+        <table class="diff-table">
+          <thead><tr>
+            <th>ネットワーク</th><th>バンド</th><th>セクター</th><th>アンテナ</th><th>A eTilt</th><th>B eTilt</th>
+          </tr></thead>
+          <tbody id="sect-ant-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">⚡ 電源情報 (bases)</div>
+      <table class="diff-table">
+        <thead><tr>
+          <th>基地局番号</th><th>バンド</th><th>電源方式</th><th>バッテリ種別</th><th>電源車</th><th>状態</th>
+        </tr></thead>
+        <tbody id="power-tbody"></tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <div class="section-title">🔌 付属装置 (Ancillary)</div>
+      <table class="diff-table">
+        <thead><tr>
+          <th>機種</th><th>状態</th>
+          <th style="color:var(--a-color)">A 台数</th>
+          <th style="color:var(--a-color)">A FAC番号</th>
+          <th style="color:var(--muted);text-align:center">→</th>
+          <th style="color:var(--b-color)">B 台数</th>
+          <th style="color:var(--b-color)">B FAC番号</th>
+        </tr></thead>
+        <tbody id="anc-tbody"></tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <div class="section-title">📶 無線機ポート情報 (sectorPorts)</div>
+      <div id="port-section"></div>
+    </div>
+  </main>
+</div>
+
+<script>
+let dataA=null, dataB=null, fnameA='', fnameB='';
+
+// D&D
+function onDragOver(e,side){ e.preventDefault(); document.getElementById('box-'+side).classList.add('drag-over'); }
+function onDragLeave(side) { document.getElementById('box-'+side).classList.remove('drag-over'); }
+function onDrop(e,slot){
+  e.preventDefault();
+  const side=slot.toLowerCase();
+  document.getElementById('box-'+side).classList.remove('drag-over');
+  const f=e.dataTransfer.files[0]; if(f) readFile(f,slot);
+}
+function onFileInput(inp,slot){ if(inp.files[0]) readFile(inp.files[0],slot); }
+
+function readFile(file,slot){
+  const r=new FileReader();
+  r.onload=e=>{
+    try{
+      let t=e.target.result;
+      if(t.charCodeAt(0)===0xFEFF) t=t.slice(1);
+      const j=JSON.parse(t);
+      if(slot==='A'){dataA=j;fnameA=file.name;}
+      else          {dataB=j;fnameB=file.name;}
+      const side=slot.toLowerCase();
+      document.getElementById('box-'+side).classList.add('loaded');
+      const fn=document.getElementById('fname-'+side);
+      fn.textContent='✓ '+file.name; fn.classList.add('loaded');
+      checkReady();
+    }catch(err){alert('JSON解析エラー: '+err.message);}
+  };
+  r.readAsText(file,'utf-8');
+}
+function checkReady(){
+  const b=document.getElementById('run-btn');
+  if(dataA&&dataB){b.disabled=false;b.classList.add('ready');}
+}
+
+function resetToUpload(){
+  dataA=dataB=null;
+  document.getElementById('upload-screen').style.display='flex';
+  document.getElementById('viewer-screen').style.display='none';
+  ['a','b'].forEach(s=>{
+    document.getElementById('box-'+s).classList.remove('loaded','drag-over');
+    const fn=document.getElementById('fname-'+s);
+    fn.textContent='ファイル未選択'; fn.classList.remove('loaded');
+  });
+  const b=document.getElementById('run-btn'); b.disabled=true; b.classList.remove('ready');
+}
+
+// Helpers
+const sv=(v)=>(v!==null&&v!==undefined&&v!=='')?String(v):'—';
+const eqJ=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+const PM={'01':'商用電源','02':'太陽電池','03':'風力','04':'その他'};
+const BC={'1':'なし','2':'UPS','3':'バッテリー','4':'発電機'};
+const RK={'1':'LTE','2':'5G NR','3':'3G'};
+const BD={'01':'B1(2.1G)','02':'B19(800M)','03':'B8(900M)','04':'B3(1.7G)','05':'B11(1.5G)'};
+
+function getRuMod(data){
+  const m={};
+  for(const net of(data.responseBody.networks||[]))
+    for(const sp of(net.sectorPorts||[]))
+      if(sp.deviceIdName) m[sp.deviceIdName]=sp.equipModelName||'';
+  return m;
+}
+const sh=d=>d.responseBody.shared;
+const hd=d=>d.responseBody.head;
+const nets=d=>d.responseBody.networks||[];
+function bdg(cls,lbl){return `<span class="badge badge-${cls}">${lbl}</span>`;}
+function stBdg(inA,inB,chg){
+  if(inA&&!inB) return bdg('del','撤去');
+  if(!inA&&inB) return bdg('new','新設');
+  return chg?bdg('chg','変更'):bdg('same','既設');
+}
+function numSort(a,b){return parseInt(a.replace(/\D/g,''))-parseInt(b.replace(/\D/g,''));}
+
+function runDiff(){
+  document.getElementById('upload-screen').style.display='none';
+  document.getElementById('viewer-screen').style.display='block';
+  const shA=sh(dataA),shB=sh(dataB),hdA=hd(dataA),hdB=hd(dataB);
+  const nA=nets(dataA),nB=nets(dataB);
+  const modA=getRuMod(dataA),modB=getRuMod(dataB);
+  const site=shA.bases?.[0];
+  document.getElementById('hdr-title').textContent=`📡 諸元差分ビューア — ${site?.baseNameKanji||''} ${site?.baseNumber||''}`;
+  document.getElementById('hdr-sub').textContent=`${hdA.siteId||''} | ${shA.site?.area?.name||''} | ${shA.site?.address?.detailAddressNm||''}`;
+  document.getElementById('hdr-badge-a').textContent='A: '+fnameA;
+  document.getElementById('hdr-badge-b').textContent='B: '+fnameB;
+  buildHead(hdA,hdB,shA,shB);
+  buildMU(shA,shB);
+  buildRU(shA,shB,modA,modB);
+  buildAnt(shA,shB,nA,nB);
+  buildPow(shA,shB);
+  buildAnc(shA,shB);
+  buildPort(nA,nB);
+  buildSum(hdA,hdB,shA,shB,modA,modB);
+}
+
+function buildHead(hdA,hdB,shA,shB){
+  const rows=[
+    ['specNm / specId',`${sv(hdA.specNm)} / ${sv(hdA.specId)}`,`${sv(hdB.specNm)} / ${sv(hdB.specId)}`],
+    ['諸元状態(specSts)',sv(hdA.specSts),sv(hdB.specSts)],
+    ['備考',sv(hdA.remarks?.[0]?.contents).replace(/\n/g,' '),sv(hdB.remarks?.[0]?.contents).replace(/\n/g,' ')],
+    ['オーダー',(shA.orders||[]).map(o=>o.orderId+'('+o.project?.name+')').join(', '),
+               (shB.orders||[]).map(o=>o.orderId+'('+o.project?.name+')').join(', ')],
+  ];
+  document.getElementById('head-section').innerHTML=rows.map(([k,va,vb])=>`
+    <div class="info-row">
+      <span class="info-key">${k}</span>
+      <span class="info-val-a">A: ${va}</span>
+      <span style="color:var(--muted)">→</span>
+      <span class="info-val-b">B: ${vb}</span>
+      ${va!==vb?bdg('chg','変更'):bdg('same','既設')}
+    </div>`).join('');
+}
+
+function buildMU(shA,shB){
+  const el=document.getElementById('mu-section');
+  const rgsA=shA.radioGroups||[], rgsB=shB.radioGroups||[];
+  const mapA=Object.fromEntries(rgsA.map(r=>[r.radioGroupIdName,r]));
+  const mapB=Object.fromEntries(rgsB.map(r=>[r.radioGroupIdName,r]));
+  const allNames=[...new Set([...rgsA.map(r=>r.radioGroupIdName),...rgsB.map(r=>r.radioGroupIdName)])]
+    .sort(numSort);
+
+  // RU名→バンドマップからMU番号順に担当バンドを推定
+  // ネットワーク(band)×RUの集合を、MUの dispOrder 順に割り当て
+  // 具体的: networks を dispOrder 順のMUに対応させる
+  // ★ lteServiceBand/fivegServiceBand.radioGroupId でMU↔バンドを正確に取得
+  function buildMuBandMap(data, rgIdToName){
+    const result={};
+    for(const net of(data.responseBody.networks||[])){
+      const band=net.frequencyBand?.name||'';
+      for(const key of['lteServiceBand','fivegServiceBand','wcdmaServiceBand']){
+        const rgId=net[key]?.radioGroupId;
+        if(rgId && rgIdToName[rgId]){
+          const mu=rgIdToName[rgId];
+          if(!result[mu]) result[mu]=band;
+          else if(!result[mu].includes(band)) result[mu]+=' / '+band;
+        }
+      }
+    }
+    return result;
+  }
+  const rgIdNameA=Object.fromEntries(rgsA.map(r=>[r.radioGroupId,r.radioGroupIdName]));
+  const rgIdNameB=Object.fromEntries(rgsB.map(r=>[r.radioGroupId,r.radioGroupIdName]));
+  const bandMapA=buildMuBandMap(dataA, rgIdNameA);
+  const bandMapB=buildMuBandMap(dataB, rgIdNameB);
+
+  // devices以外のフィールドで変化判定（devicesは別途フィールド単位で色付け）
+  function muStatus(muName){
+    const inA=!!mapA[muName], inB=!!mapB[muName];
+    if(inA&&inB){
+      const a=mapA[muName], b=mapB[muName];
+      const cmp=r=>[r.ranKindCd,JSON.stringify(r.bbuAccomGcBbt),r.alarmPatternL,r.alarmPatternW,r.alarmPatternFiveg,JSON.stringify(r.caConfigs),JSON.stringify(r.primaryL),JSON.stringify(r.primaryFiveg)].join('|');
+      // devicesの差分も変更判定に含める
+      const devChanged=JSON.stringify((a.devices||[]).map(d=>d.deviceId).sort())!==JSON.stringify((b.devices||[]).map(d=>d.deviceId).sort());
+      return (cmp(a)!==cmp(b)||devChanged)?'chg':'same';
+    }
+    return inA?'del':'new';
+  }
+
+  function muCard(rg,side,muName){
+    if(!rg){
+      const oppRg=(side==='A'?mapB:mapA)[muName];
+      const oppDevs=oppRg?.devices||[];
+      const oppDevsHTML=oppDevs.map(d=>`<span style="font-size:12px;color:var(--border);display:block">${d.deviceName||''} / ${d.equipment?.equipModelName||''}</span>`).join('');
+      const oppSide=side==='A'?'B':'A';
+      return `<div class="mu-absent">
+        <div class="mu-absent-name">${muName}</div>
+        <div class="mu-absent-msg">${side}には存在しない</div>
+        ${oppDevsHTML?`<div style="margin-top:6px;font-size:11px;color:var(--border)">${oppSide}側の装置：<br>${oppDevsHTML}</div>`:''}
+      </div>`;
+    }
+    const iid=`mu-${side}-${muName.replace(/\W/g,'')}`;
+    const status=muStatus(muName);
+    let st;
+    if(status==='same') st=bdg('same','既設');
+    else if(status==='chg') st=bdg('chg','変更');
+    else if(status==='del') st=bdg('del','撤去');
+    else st=bdg('new','新設');
+
+    // devicesチップ：A/B間のdevice差分をIDで比較して色決定
+    const thisDevIds=(rg.devices||[]).map(d=>d.deviceId).sort().join(',');
+    const oppRg2=(side==='A'?mapB:mapA)[muName];
+    const oppDevIds=(oppRg2?.devices||[]).map(d=>d.deviceId).sort().join(',');
+    let chipCls='';
+    if(status==='del') chipCls='del';
+    else if(status==='new') chipCls='add';
+    else if(thisDevIds!==oppDevIds){
+      chipCls=(side==='A'&&thisDevIds&&!oppDevIds)?'del':(side==='B'&&thisDevIds&&!oppDevIds)?'add':'';
+    }
+    const devs=(rg.devices||[]).map(d=>
+      `<span class="device-chip ${chipCls}">${d.deviceName||''} / ${d.equipment?.equipModelName||''}</span>`
+    ).join('')||`<span class="val-muted" style="font-size:13px">装置なし (CRAN構成)</span>`;
+
+    const ca=(rg.caConfigs||[]).map(c=>BD[c.frequencyBandCd]||c.frequencyBandCd).filter(Boolean).join(' + ')||'—';
+
+    // バンド文字列と色
+    // 新設MU→赤(new)、撤去MU→青(del)、変更→紫(chg)、既設→白(same)
+    const bandStr=(side==='A'?bandMapA:bandMapB)[muName]||'';
+    const bandA=bandMapA[muName]||'', bandB=bandMapB[muName]||'';
+    let bandColor, bandBg, bandBorder;
+    if(status==='new'){
+      bandColor='var(--c-new)'; bandBg='rgba(248,81,73,.12)'; bandBorder='rgba(248,81,73,.4)';
+    } else if(status==='del'){
+      bandColor='var(--c-del)'; bandBg='rgba(88,166,255,.12)'; bandBorder='rgba(88,166,255,.4)';
+    } else if(bandA!==bandB){
+      bandColor='var(--c-chg)'; bandBg='rgba(210,168,255,.12)'; bandBorder='rgba(210,168,255,.4)';
+    } else {
+      bandColor='var(--c-same)'; bandBg='rgba(230,237,243,.06)'; bandBorder='rgba(230,237,243,.4)';
+    }
+
+    // 各フィールド色：新設・撤去MUは相手側が存在しないのでfcは使わず status色
+    // 両側に存在するMUのみA/B比較して差分色付け
+    const aRg=mapA[muName], bRg=mapB[muName];
+    function fc(va,vb){
+      if(!aRg||!bRg) return 'var(--text)';  // 片側のみ→通常色（バンドで色付け済み）
+      return JSON.stringify(va)!==JSON.stringify(vb)?'var(--c-chg)':'var(--text)';
+    }
+    const cAlarmL  =fc(aRg?.alarmPatternL,   bRg?.alarmPatternL);
+    const cAlarmW  =fc(aRg?.alarmPatternW,   bRg?.alarmPatternW);
+    const cAlarm5g =fc(aRg?.alarmPatternFiveg,bRg?.alarmPatternFiveg);
+    const cPrimaryL=fc(aRg?.primaryL,         bRg?.primaryL);
+    const cCa      =fc(aRg?.caConfigs,        bRg?.caConfigs);
+
+    return `<div class="mu-item">
+      <div class="mu-item-header" onclick="toggleC('${iid}')">
+        <span class="chevron open" id="chev-${iid}">▶</span>
+        <span>${rg.radioGroupIdName}</span>
+        ${bandStr?`<span style="font-size:12px;color:${bandColor};background:${bandBg};border:1px solid ${bandBorder};border-radius:4px;padding:1px 7px">${bandStr}</span>`:''}
+        ${st}
+        <span class="val-muted" style="font-size:12px;margin-left:auto">${rg.radioGroupId||''}</span>
+      </div>
+      <div class="collapse-body open" id="${iid}">
+        <div class="mu-item-body">
+          ${bandStr?`<div class="mu-row"><span class="mu-key">対応周波数</span><span class="mu-val" style="color:${bandColor}">${bandStr}</span></div>`:''}
+          <div class="mu-row"><span class="mu-key">RAN種別</span><span class="mu-val">${RK[rg.ranKindCd]||sv(rg.ranKindCd)} (${sv(rg.ranKindCd)})</span></div>
+          <div class="mu-row"><span class="mu-key">BBU収容局</span><span class="mu-val">${sv(rg.bbuAccomGcBbt?.name)} (${sv(rg.bbuAccomGcBbt?.code)})</span></div>
+          <div class="mu-row"><span class="mu-key">primaryL</span><span class="mu-val" style="color:${cPrimaryL}">${sv(rg.primaryL?.name)}</span></div>
+          <div class="mu-row"><span class="mu-key">アラームL</span><span class="mu-val" style="color:${cAlarmL}">${sv(rg.alarmPatternL)}</span></div>
+          <div class="mu-row"><span class="mu-key">アラームW</span><span class="mu-val" style="color:${cAlarmW}">${sv(rg.alarmPatternW)}</span></div>
+          <div class="mu-row"><span class="mu-key">アラーム5G</span><span class="mu-val" style="color:${cAlarm5g}">${sv(rg.alarmPatternFiveg)}</span></div>
+          <div class="mu-row"><span class="mu-key">CA構成</span><span class="mu-val" style="color:${cCa}">${ca}</span></div>
+          <div class="mu-row"><span class="mu-key">表示順</span><span class="mu-val">${sv(rg.dispOrder)}</span></div>
+          <div class="mu-row"><span class="mu-key">装置</span><span class="mu-val">${devs}</span></div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  const colA=`<div class="mu-panel">
+    <div class="mu-panel-header a-hdr">
+      ${bdg('a','A 現行')} ${rgsA.map(r=>r.radioGroupIdName).join(' / ')||'—'}
+    </div>
+    ${allNames.map(n=>muCard(mapA[n]||null,'A',n)).join('')}
+  </div>`;
+  const colB=`<div class="mu-panel">
+    <div class="mu-panel-header b-hdr">
+      ${bdg('b','B 今回')} ${rgsB.map(r=>r.radioGroupIdName).join(' / ')||'—'}
+    </div>
+    ${allNames.map(n=>muCard(mapB[n]||null,'B',n)).join('')}
+  </div>`;
+  el.innerHTML=colA+colB;
+}
+
+function buildRU(shA,shB,modA,modB){
+  const setA=new Set((shA.radioChilds||[]).map(r=>r.deviceIdName));
+  const setB=new Set((shB.radioChilds||[]).map(r=>r.deviceIdName));
+  const all=[...new Set([...setA,...setB])].sort(numSort);
+  document.getElementById('ru-tbody').innerHTML=all.map(name=>{
+    const inA=setA.has(name),inB=setB.has(name);
+    const mA=modA[name]||'—',mB=modB[name]||'—';
+    const rc=!inA?'row-new':(!inB?'row-del':'');
+    const nc=!inA?'val-new':(!inB?'val-del':'val-same');
+    return `<tr class="${rc}">
+      <td class="${nc}">${name}</td>
+      <td>${stBdg(inA,inB,mA!==mB)}</td>
+      <td>${inA?`<span class="${!inB?'val-del':''}">${mA}</span>`:'<span class="val-muted">—</span>'}</td>
+      <td>${inB?`<span class="${!inA?'val-new':''}">${mB}</span>`:'<span class="val-muted">—</span>'}</td>
+    </tr>`;
+  }).join('');
+}
+
+function buildAnt(shA,shB,nA,nB){
+  const mapA=Object.fromEntries((shA.antennas||[]).map(a=>[a.deviceIdName,a]));
+  const mapB=Object.fromEntries((shB.antennas||[]).map(a=>[a.deviceIdName,a]));
+  const all=[...new Set([...Object.keys(mapA),...Object.keys(mapB)])].sort(numSort);
+  function bstr(ant){return(ant?.equipment?.beamWidths||[]).map(b=>BD[b.frequencyBand]||b.frequencyBand).join(',')|| '—';}
+  function cd(va,vb){return String(va)===String(vb)?`<td>${sv(va)}</td>`:`<td><span class="val-del">${sv(va)}</span>→<span class="val-new">${sv(vb)}</span></td>`;}
+  document.getElementById('ant-tbody').innerHTML=all.map(name=>{
+    const a=mapA[name],b=mapB[name];
+    const inA=!!a,inB=!!b;
+    const eA=a?.equipment||{},eB=b?.equipment||{};
+    const chg=!eqJ(a?.devAzimuth,b?.devAzimuth)||!eqJ(a?.devHeight,b?.devHeight)||
+              !eqJ(a?.devMTilt,b?.devMTilt)||!eqJ(eA.equipModelName,eB.equipModelName);
+    const rc=!inA?'row-new':(!inB?'row-del':'');
+    const nc=!inA?'val-new':(!inB?'val-del':'val-same');
+    const ref=a||b;
+    if(inA&&inB) return `<tr class="${rc}"><td class="${nc}">${name}</td><td>${stBdg(inA,inB,chg)}</td>
+      ${cd(eA.equipModelName,eB.equipModelName)}${cd(a.devAzimuth,b.devAzimuth)}${cd(a.devHeight,b.devHeight)}${cd(a.devMTilt,b.devMTilt)}
+      <td>${bstr(a)}</td><td class="val-muted" style="font-size:12px">${sv(ref?.devLatitudeDeg)},${sv(ref?.devLongitudeDeg)}</td></tr>`;
+    const eq2=ref?.equipment||{};
+    return `<tr class="${rc}"><td class="${nc}">${name}</td><td>${stBdg(inA,inB,false)}</td>
+      <td class="${nc}">${eq2.equipModelName||'—'}</td><td class="${nc}">${sv(ref?.devAzimuth)}</td>
+      <td class="${nc}">${sv(ref?.devHeight)}</td><td class="${nc}">${sv(ref?.devMTilt)}</td>
+      <td>${bstr(ref)}</td><td class="val-muted" style="font-size:12px">${sv(ref?.devLatitudeDeg)},${sv(ref?.devLongitudeDeg)}</td></tr>`;
+  }).join('');
+
+  const nmA=Object.fromEntries(nA.map(n=>[n.nwIdName,n]));
+  const nmB=Object.fromEntries(nB.map(n=>[n.nwIdName,n]));
+  const allN=[...new Set([...Object.keys(nmA),...Object.keys(nmB)])];
+  document.getElementById('sect-ant-tbody').innerHTML=allN.flatMap(nw=>{
+    const na=nmA[nw],nb=nmB[nw];
+    const band=(na||nb)?.frequencyBand?.name||'';
+    const sasA=na?.sectorAntennas||[],sasB=nb?.sectorAntennas||[];
+    const secs=[...new Set([...sasA.map(s=>s.sectorIdName),...sasB.map(s=>s.sectorIdName)])].sort();
+    return secs.map(sec=>{
+      const saA=sasA.find(x=>x.sectorIdName===sec),saB=sasB.find(x=>x.sectorIdName===sec);
+      const antA=saA?.deviceIdName||'—',antB=saB?.deviceIdName||'—';
+      const etA=sv(saA?.electricalTilt),etB=sv(saB?.electricalTilt);
+      return `<tr><td>${nw}</td><td>${band}</td><td>Sec ${sec}</td>
+        <td>${antA===antB?antA:`<span class="val-del">${antA}</span>→<span class="val-new">${antB}</span>`}</td>
+        <td class="val-del">${etA}</td><td class="val-new">${etB}</td></tr>`;
+    });
+  }).join('');
+}
+
+function buildPow(shA,shB){
+  const mapA=Object.fromEntries((shA.bases||[]).map(b=>[b.baseNumber,b]));
+  const mapB=Object.fromEntries((shB.bases||[]).map(b=>[b.baseNumber,b]));
+  const all=[...new Set([...Object.keys(mapA),...Object.keys(mapB)])];
+  function dec(ps){return{meth:PM[ps.powerIncomingMethod]||sv(ps.powerIncomingMethod),batt:BC[String(ps.battCls)]||sv(ps.battCls),veh:ps.powerSupplyBehiclesFlg==='1'?'あり':'なし'};}
+  function cd(va,vb){return va===vb?va:`<span class="val-del">${va}</span>→<span class="val-new">${vb}</span>`;}
+  document.getElementById('power-tbody').innerHTML=all.map(bn=>{
+    const bA=mapA[bn],bB=mapB[bn];
+    const dA=dec(bA?.powerSupply||{}),dB=dec(bB?.powerSupply||{});
+    const band=bA?.frequencyBand?.name||bB?.frequencyBand?.name||'';
+    const chg=dA.meth!==dB.meth||dA.batt!==dB.batt||dA.veh!==dB.veh;
+    return `<tr><td>${bn}</td><td>${band}</td><td>${cd(dA.meth,dB.meth)}</td><td>${cd(dA.batt,dB.batt)}</td><td>${cd(dA.veh,dB.veh)}</td><td>${chg?bdg('chg','変更'):bdg('same','既設')}</td></tr>`;
+  }).join('');
+}
+
+function buildAnc(shA,shB){
+  const ancA=shA.ancillaries||[], ancB=shB.ancillaries||[];
+
+  // 機種ごとにグループ化
+  function groupByModel(ancs){
+    const m={};
+    for(const a of ancs){
+      const model=a.equipment?.equipModelName||'—';
+      if(!m[model]) m[model]=[];
+      m[model].push(a.deviceIdName||'');
+    }
+    return m;
+  }
+  const grpA=groupByModel(ancA), grpB=groupByModel(ancB);
+  const allModels=[...new Set([...Object.keys(grpA),...Object.keys(grpB)])].sort();
+
+  document.getElementById('anc-tbody').innerHTML=allModels.map(model=>{
+    const facsA=grpA[model]||[], facsB=grpB[model]||[];
+    const inA=facsA.length>0, inB=facsB.length>0;
+    const sameCount=facsA.length===facsB.length;
+    let st, rc='';
+    if(inA&&!inB){st=bdg('del','撤去');rc='row-del';}
+    else if(!inA&&inB){st=bdg('new','新設');rc='row-new';}
+    else if(!sameCount){st=bdg('chg','変更');}
+    else{st=bdg('same','既設');}
+
+    const cntA=inA?`<span class="val-del">${facsA.length}台</span>`:'<span class="val-muted">—</span>';
+    const cntB=inB?`<span class="val-new">${facsB.length}台</span>`:'<span class="val-muted">—</span>';
+    // 既設の場合は台数色を通常色に
+    const cntAdisp=(!inA)?'<span class="val-muted">—</span>':
+                   (!inB)?`<span class="val-del">${facsA.length}台</span>`:
+                   `<span>${facsA.length}台</span>`;
+    const cntBdisp=(!inB)?'<span class="val-muted">—</span>':
+                   (!inA)?`<span class="val-new">${facsB.length}台</span>`:
+                   `<span>${facsB.length}台</span>`;
+    const facAdisp=facsA.length?`<span class="val-muted" style="font-size:12px">${facsA.sort().join(', ')}</span>`:'<span class="val-muted">—</span>';
+    const facBdisp=facsB.length?`<span class="val-muted" style="font-size:12px">${facsB.sort().join(', ')}</span>`:'<span class="val-muted">—</span>';
+
+    const modelCls=!inA?'val-new':!inB?'val-del':'val-same';
+    return `<tr class="${rc}">
+      <td class="${modelCls}" style="font-size:13px;font-weight:600">${model}</td>
+      <td>${st}</td>
+      <td>${cntAdisp}</td>
+      <td>${facAdisp}</td>
+      <td style="color:var(--muted);text-align:center;font-size:16px">→</td>
+      <td>${cntBdisp}</td>
+      <td>${facBdisp}</td>
+    </tr>`;
+  }).join('');
+}
+
+function buildPort(nA,nB){
+  const el=document.getElementById('port-section');
+  const nmA=Object.fromEntries(nA.map(n=>[n.nwIdName,n]));
+  const nmB=Object.fromEntries(nB.map(n=>[n.nwIdName,n]));
+  const allNets=[...new Set([...Object.keys(nmA),...Object.keys(nmB)])];
+
+  // ポートのキー：セクタ×ポート番号で一意
+  function spKey(sp){ return `${sp.sectorIdName}_${sp.portNo}`; }
+  // 比較用シグネチャ（製造番号・認証番号を除く）
+  function spSig(sp){ return [sp.deviceIdName,sp.equipModelName,sp.portNo,sp.transReceiveClsName].join('|'); }
+
+  let html='';
+  allNets.forEach(nwName=>{
+    const na=nmA[nwName], nb=nmB[nwName];
+    const band=(na||nb)?.frequencyBand?.name||'';
+    const spsA=na?.sectorPorts||[], spsB=nb?.sectorPorts||[];
+    if(!spsA.length && !spsB.length) return;
+
+    const mapSpA=Object.fromEntries(spsA.map(s=>[spKey(s),s]));
+    const mapSpB=Object.fromEntries(spsB.map(s=>[spKey(s),s]));
+    const allKeys=[...new Set([...Object.keys(mapSpA),...Object.keys(mapSpB)])]
+      .sort((a,b)=>{
+        const [sa,pa]=a.split('_').map(Number);
+        const [sb,pb]=b.split('_').map(Number);
+        return sa!==sb ? sa-sb : pa-pb;
+      });
+
+    html+=`<div style="margin-bottom:24px">
+      <div style="font-size:13px;font-weight:700;color:var(--muted);margin-bottom:8px;padding:6px 12px;background:var(--panel);border-radius:6px;border:1px solid var(--border);display:flex;align-items:center;gap:10px">
+        <span>${nwName}</span>
+        <span style="font-size:12px;color:var(--text);background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:4px;padding:1px 8px">${band}</span>
+      </div>
+      <table class="diff-table">
+        <thead><tr>
+          <th>セクタ</th><th>ポート</th>
+          <th>A　無線子機</th>
+          <th>A　無線機型式</th>
+          <th>A　送受の別</th>
+          <th style="color:var(--muted);font-size:18px;text-align:center">→</th>
+          <th>B　無線子機</th>
+          <th>B　無線機型式</th>
+          <th>B　送受の別</th>
+          <th>状態</th>
+        </tr></thead>
+        <tbody>`;
+
+    allKeys.forEach(key=>{
+      const spA=mapSpA[key], spB=mapSpB[key];
+      const inA=!!spA, inB=!!spB;
+      const sigA=inA?spSig(spA):'', sigB=inB?spSig(spB):'';
+      const changed=sigA!==sigB;
+      const rc=!inA?'row-new':(!inB?'row-del':'');
+      const st=!inA?bdg('new','新設'):!inB?bdg('del','撤去'):changed?bdg('chg','変更'):bdg('same','既設');
+
+      // B側の各フィールド：変化なしなら同じ値を表示、変化ありなら赤で表示
+      function bVal(fieldA, fieldB){
+        if(!inB) return '<span class="val-muted">—</span>';
+        if(!inA) return `<span class="val-new">${sv(fieldB)}</span>`;
+        return sv(fieldA)===sv(fieldB)
+          ? `<span>${sv(fieldB)}</span>`          // 既設：同値をそのまま表示
+          : `<span class="val-new">${sv(fieldB)}</span>`;  // 変更：赤で表示
+      }
+
+      // A側セル色: 撤去行→青(del)、変更行→青(del)、既設行→通常色
+      const aClsBase = !inA ? '' : (!inB || changed) ? 'val-del' : '';
+
+      const [secId, portNo]=key.split('_');
+      html+=`<tr class="${rc}">
+        <td>Sec ${secId}</td>
+        <td style="text-align:center">${portNo}</td>
+        <td class="${aClsBase}">${inA?sv(spA.deviceIdName):'<span class="val-muted">—</span>'}</td>
+        <td class="${aClsBase}">${inA?sv(spA.equipModelName):'<span class="val-muted">—</span>'}</td>
+        <td class="${aClsBase}">${inA?sv(spA.transReceiveClsName):'<span class="val-muted">—</span>'}</td>
+        <td style="color:var(--muted);text-align:center;font-size:16px">→</td>
+        <td>${bVal(spA?.deviceIdName, spB?.deviceIdName)}</td>
+        <td>${bVal(spA?.equipModelName, spB?.equipModelName)}</td>
+        <td>${bVal(spA?.transReceiveClsName, spB?.transReceiveClsName)}</td>
+        <td>${st}</td>
+      </tr>`;
+    });
+
+    html+=`</tbody></table></div>`;
+  });
+  el.innerHTML=html||'<span class="val-muted">データなし</span>';
+}
+
+function buildSum(hdA,hdB,shA,shB,modA,modB){
+  const rgsA=shA.radioGroups||[],rgsB=shB.radioGroups||[];
+  const rcsA=shA.radioChilds||[],rcsB=shB.radioChilds||[];
+  const ancA=shA.ancillaries||[],ancB=shB.ancillaries||[];
+  const ordA=shA.orders||[],ordB=shB.orders||[];
+  const ranA=[...new Set(rgsA.map(r=>RK[r.ranKindCd]||r.ranKindCd))].join('/');
+  const ranB=[...new Set(rgsB.map(r=>RK[r.ranKindCd]||r.ranKindCd))].join('/');
+  const bbuA=rgsA[0]?.bbuAccomGcBbt?.name||'—';
+  const bbuB=rgsB[0]?.bbuAccomGcBbt?.name||'—';
+  const cards=[
+    {lbl:'MU (無線機グループ)',val:`${rgsA.length} → ${rgsB.length}`,sub:rgsA.map(r=>r.radioGroupIdName).join(',')+' → '+rgsB.map(r=>r.radioGroupIdName).join(','),col:rgsA.length!==rgsB.length?'var(--c-chg)':'var(--c-same)'},
+    {lbl:'RAN種別',val:`${ranA} → ${ranB}`,sub:'ranKindCd',col:ranA!==ranB?'var(--c-chg)':'var(--c-same)'},
+    {lbl:'RU (無線機子機)',val:`${rcsA.length} → ${rcsB.length}`,sub:'総数変化',col:rcsA.length!==rcsB.length?'var(--c-chg)':'var(--c-same)'},
+    {lbl:'オーダー数',val:`${ordA.length} → ${ordB.length}`,sub:ordB.map(o=>o.project?.name).filter((v,i,a)=>a.indexOf(v)===i).join(', '),col:ordA.length!==ordB.length?'var(--c-chg)':'var(--c-same)'},
+    {lbl:'BBU収容局',val:`${bbuA} → ${bbuB}`,sub:'全MU共通',col:bbuA!==bbuB?'var(--c-chg)':'var(--c-same)'},
+    {lbl:'Ancillary',val:`${ancA.length} → ${ancB.length}`,sub:ancB.length>ancA.length?`+${ancB.length-ancA.length}追加`:ancB.length<ancA.length?`-${ancA.length-ancB.length}削除`:'変化なし',col:ancA.length!==ancB.length?'var(--c-chg)':'var(--c-same)'},
+  ];
+  document.getElementById('summary-cards').innerHTML=cards.map(c=>`<div class="summary-card"><div class="lbl">${c.lbl}</div><div class="val" style="color:${c.col}">${c.val}</div><div class="sub">${c.sub}</div></div>`).join('');
+
+  const ruSetA=new Set(rcsA.map(r=>r.deviceIdName)),ruSetB=new Set(rcsB.map(r=>r.deviceIdName));
+  const ruDel=[...ruSetA].filter(n=>!ruSetB.has(n)).map(n=>`${n}(${modA[n]||'?'})`);
+  const ruAdd=[...ruSetB].filter(n=>!ruSetA.has(n)).map(n=>`${n}(${modB[n]||'?'})`);
+  const ancSetA=new Set(ancA.map(a=>a.deviceIdName)),ancSetB=new Set(ancB.map(a=>a.deviceIdName));
+  const ancDel=[...ancSetA].filter(n=>!ancSetB.has(n));
+  const ancAdd=[...ancSetB].filter(n=>!ancSetA.has(n));
+  const muAlarm=[];
+  rgsA.forEach(rg=>{const m=rgsB.find(r=>r.radioGroupIdName===rg.radioGroupIdName);if(m&&rg.alarmPatternL!==m.alarmPatternL)muAlarm.push(`  ${rg.radioGroupIdName}: alarmL ${sv(rg.alarmPatternL)} → ${sv(m.alarmPatternL)}`);});
+  const site=shA.bases?.[0];
+  const lines=[
+    '========== 諸元差分サマリー ==========',
+    `局名     : ${site?.baseNameKanji||''} (${site?.baseNumber||''})`,
+    `siteId   : ${hdA.siteId||''}`,
+    `エリア   : ${shA.site?.area?.name||''} ${shA.site?.address?.detailAddressNm||''}`,
+    '','--- 諸元ID ---',
+    `A: ${hdA.specNm} / ${hdA.specId}`,`B: ${hdB.specNm} / ${hdB.specId}`,
+    '','--- オーダー ---',
+    `A: ${ordA.map(o=>o.orderId+'('+o.project?.name+')').join(', ')}`,
+    `B: ${ordB.map(o=>o.orderId+'('+o.project?.name+')').join(', ')}`,
+    '','--- 無線機グループ (MU) ---',
+    `A: ${rgsA.map(r=>r.radioGroupIdName+'['+(RK[r.ranKindCd]||r.ranKindCd)+']').join(', ')}`,
+    `B: ${rgsB.map(r=>r.radioGroupIdName+'['+(RK[r.ranKindCd]||r.ranKindCd)+']').join(', ')}`,
+    `BBU収容局: ${rgsA[0]?.bbuAccomGcBbt?.name||'—'} → ${rgsB[0]?.bbuAccomGcBbt?.name||'—'}`,
+    '','  [A] MUアラームパターン',
+    ...rgsA.map(r=>`  ${r.radioGroupIdName}: alarmL=${sv(r.alarmPatternL)} alarmW=${sv(r.alarmPatternW)}`),
+    '  [B] MUアラームパターン',
+    ...rgsB.map(r=>`  ${r.radioGroupIdName}: alarmL=${sv(r.alarmPatternL)} alarmW=${sv(r.alarmPatternW)} alarm5G=${sv(r.alarmPatternFiveg)}`),
+    ...(muAlarm.length?['  ※アラームパターン変化:',...muAlarm]:[]),
+    '','--- RU (無線機子機) ---',
+    `削除 (${ruDel.length}台): ${ruDel.join(', ')||'なし'}`,
+    `追加 (${ruAdd.length}台): ${ruAdd.join(', ')||'なし'}`,
+    '','--- アンテナ ---',
+    ...(shA.antennas||[]).map(a=>{const eq=a.equipment||{};return`  ${a.deviceIdName}: ${eq.equipModelName||'—'} 方位${sv(a.devAzimuth)}° H${sv(a.devHeight)}m Mtilt${sv(a.devMTilt)}°`;}),
+    '','--- 電源情報 ---',
+    ...(shA.bases||[]).map(b=>{const ps=b.powerSupply||{};return`  ${b.baseNumber}(${b.frequencyBand?.name||''}): ${PM[ps.powerIncomingMethod]||sv(ps.powerIncomingMethod)} / ${BC[String(ps.battCls)]||sv(ps.battCls)} / 電源車:${ps.powerSupplyBehiclesFlg==='1'?'あり':'なし'}`;}),
+    '','--- 付属装置 (Ancillary) ---',
+    `削除: ${ancDel.join(', ')||'なし'}`,`追加: ${ancAdd.join(', ')||'なし'}`,
+    ``,`出力日時: ${new Date().toLocaleString('ja-JP')}`,
+    '======================================',
+  ];
+  document.getElementById('summary-text').textContent=lines.join('\n');
+}
+
+function copySummary(){
+  navigator.clipboard.writeText(document.getElementById('summary-text').textContent).then(()=>{
+    const b=document.getElementById('copy-btn');
+    b.textContent='✓ コピー完了';b.classList.add('copied');
+    setTimeout(()=>{b.textContent='📋 コピー';b.classList.remove('copied');},2000);
+  });
+}
+function toggleC(id){
+  document.getElementById(id).classList.toggle('open');
+  document.getElementById('chev-'+id).classList.toggle('open');
+}
+</script>
+</body>
+</html>
