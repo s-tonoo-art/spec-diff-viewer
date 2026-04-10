@@ -217,7 +217,7 @@
 
 <!-- UPLOAD -->
 <div id="upload-screen">
-  <h1>📡 諸元差分ビューア <span style="font-size:14px;font-weight:400;color:var(--muted);margin-left:8px">v3.1</span></h1>
+  <h1>📡 諸元差分ビューア <span style="font-size:14px;font-weight:400;color:var(--muted);margin-left:8px">v3.2</span></h1>
   <p>A（現行）とB（今回PJ反映後）のJSONを<br>クリックまたはドラッグ＆ドロップで選択</p>
   <p style="font-size:12px;color:var(--muted);margin-top:-16px;margin-bottom:24px">このビューアーは、差分をシンプルに見せます。複雑なのは業務であって、画面までそうである必要はありません。</p>
   <div class="upload-grid">
@@ -250,7 +250,10 @@
     <div>
       <h1 id="hdr-title">📡 諸元差分ビューア</h1>
       <div class="subtitle" id="hdr-sub">—</div>
-      <div style="font-size:11px;color:var(--muted);margin-top:2px">v3.1</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:2px;display:flex;align-items:center;gap:8px">
+        <span>v3.2</span>
+        <button onclick="toggleChangelog()" style="font-size:10px;padding:1px 7px;background:rgba(255,255,255,.07);border:1px solid var(--border);border-radius:4px;color:var(--muted);cursor:pointer">変更履歴</button>
+      </div>
     </div>
     <div class="header-right">
       <span class="badge badge-a" id="hdr-badge-a">A</span>
@@ -265,6 +268,20 @@
       <span class="legend-item"><span class="badge badge-new">新設</span>A→Bで増えた</span>
       <span class="legend-item"><span class="badge badge-chg">変更</span>値が変わった</span>
       <span class="legend-item"><span class="badge badge-same">既設</span>変化なし</span>
+    </div>
+
+    <!-- 変更履歴パネル（デフォルト非表示） -->
+    <div id="changelog-panel" style="display:none;margin:0 0 16px;padding:14px 18px;background:var(--panel);border:1px solid var(--border);border-radius:8px;font-size:12px;line-height:1.8">
+      <div style="font-weight:700;color:var(--text);margin-bottom:8px;font-size:13px">📋 変更履歴</div>
+      <table style="border-collapse:collapse;width:100%">
+        <tr style="color:var(--muted);font-size:11px;border-bottom:1px solid var(--border)">
+          <td style="padding:2px 12px 4px 0;white-space:nowrap">バージョン</td>
+          <td style="padding:2px 0 4px">内容</td>
+        </tr>
+        <tr><td style="padding:4px 12px 2px 0;color:var(--c-new);white-space:nowrap;vertical-align:top">v3.2</td><td style="padding:4px 0 2px">電源情報の項目名修正（受電方法・電源車接続・バッテリー有無）／バージョン表記・変更履歴追加</td></tr>
+        <tr><td style="padding:4px 12px 2px 0;color:var(--muted);white-space:nowrap;vertical-align:top">v3.1</td><td style="padding:4px 0 2px">凡例を撤去/新設/既設に変更／Ancillary機種ベース表示／ポートB側に実値表示／ポートA側色修正／MUバンドバッジ色修正／キャッチコピー追加</td></tr>
+        <tr><td style="padding:4px 12px 2px 0;color:var(--muted);white-space:nowrap;vertical-align:top">v3.0</td><td style="padding:4px 0 2px">初回リリース。差分ビューア基本機能（MU/RU/アンテナ/電源/Ancillary/ポート情報）</td></tr>
+      </table>
     </div>
 
     <div class="section">
@@ -318,7 +335,7 @@
       <div class="section-title">⚡ 電源情報 (bases)</div>
       <table class="diff-table">
         <thead><tr>
-          <th>基地局番号</th><th>バンド</th><th>電源方式</th><th>バッテリ種別</th><th>電源車</th><th>状態</th>
+          <th>基地局番号</th><th>バンド</th><th>受電方法</th><th>電源車接続</th><th>バッテリー有無</th><th>状態</th>
         </tr></thead>
         <tbody id="power-tbody"></tbody>
       </table>
@@ -378,6 +395,10 @@ function readFile(file,slot){
   };
   r.readAsText(file,'utf-8');
 }
+function toggleChangelog(){
+  const p=document.getElementById('changelog-panel');
+  p.style.display=p.style.display==='none'?'block':'none';
+}
 function checkReady(){
   const b=document.getElementById('run-btn');
   if(dataA&&dataB){b.disabled=false;b.classList.add('ready');}
@@ -398,8 +419,8 @@ function resetToUpload(){
 // Helpers
 const sv=(v)=>(v!==null&&v!==undefined&&v!=='')?String(v):'—';
 const eqJ=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
-const PM={'01':'商用電源','02':'太陽電池','03':'風力','04':'その他'};
-const BC={'1':'なし','2':'UPS','3':'バッテリー','4':'発電機'};
+const PM={'0101':'単相二線','0102':'単相三線','0103':'三相三線+単相二線','0104':'三相三線','0105':'その他','01':'三相三線+単相二線','02':'単相二線','03':'単相三線','04':'三相三線','05':'その他'};
+const BC={'1':'なし','2':'有(UPS)','3':'有(24H以上)','4':'有(24H未満)','5':'その他'};
 const RK={'1':'LTE','2':'5G NR','3':'3G'};
 const BD={'01':'B1(2.1G)','02':'B19(800M)','03':'B8(900M)','04':'B3(1.7G)','05':'B11(1.5G)'};
 
@@ -675,14 +696,14 @@ function buildPow(shA,shB){
   const mapA=Object.fromEntries((shA.bases||[]).map(b=>[b.baseNumber,b]));
   const mapB=Object.fromEntries((shB.bases||[]).map(b=>[b.baseNumber,b]));
   const all=[...new Set([...Object.keys(mapA),...Object.keys(mapB)])];
-  function dec(ps){return{meth:PM[ps.powerIncomingMethod]||sv(ps.powerIncomingMethod),batt:BC[String(ps.battCls)]||sv(ps.battCls),veh:ps.powerSupplyBehiclesFlg==='1'?'あり':'なし'};}
+  function dec(ps){return{meth:PM[ps.powerIncomingMethod]||sv(ps.powerIncomingMethod),veh:ps.powerSupplyBehiclesFlg==='1'?'可':'不可',batt:BC[String(ps.battCls)]||sv(ps.battCls)};}
   function cd(va,vb){return va===vb?va:`<span class="val-del">${va}</span>→<span class="val-new">${vb}</span>`;}
   document.getElementById('power-tbody').innerHTML=all.map(bn=>{
     const bA=mapA[bn],bB=mapB[bn];
     const dA=dec(bA?.powerSupply||{}),dB=dec(bB?.powerSupply||{});
     const band=bA?.frequencyBand?.name||bB?.frequencyBand?.name||'';
-    const chg=dA.meth!==dB.meth||dA.batt!==dB.batt||dA.veh!==dB.veh;
-    return `<tr><td>${bn}</td><td>${band}</td><td>${cd(dA.meth,dB.meth)}</td><td>${cd(dA.batt,dB.batt)}</td><td>${cd(dA.veh,dB.veh)}</td><td>${chg?bdg('chg','変更'):bdg('same','既設')}</td></tr>`;
+    const chg=dA.meth!==dB.meth||dA.veh!==dB.veh||dA.batt!==dB.batt;
+    return `<tr><td>${bn}</td><td>${band}</td><td>${cd(dA.meth,dB.meth)}</td><td>${cd(dA.veh,dB.veh)}</td><td>${cd(dA.batt,dB.batt)}</td><td>${chg?bdg('chg','変更'):bdg('same','既設')}</td></tr>`;
   }).join('');
 }
 
@@ -876,7 +897,7 @@ function buildSum(hdA,hdB,shA,shB,modA,modB){
     '','--- アンテナ ---',
     ...(shA.antennas||[]).map(a=>{const eq=a.equipment||{};return`  ${a.deviceIdName}: ${eq.equipModelName||'—'} 方位${sv(a.devAzimuth)}° H${sv(a.devHeight)}m Mtilt${sv(a.devMTilt)}°`;}),
     '','--- 電源情報 ---',
-    ...(shA.bases||[]).map(b=>{const ps=b.powerSupply||{};return`  ${b.baseNumber}(${b.frequencyBand?.name||''}): ${PM[ps.powerIncomingMethod]||sv(ps.powerIncomingMethod)} / ${BC[String(ps.battCls)]||sv(ps.battCls)} / 電源車:${ps.powerSupplyBehiclesFlg==='1'?'あり':'なし'}`;}),
+    ...(shA.bases||[]).map(b=>{const ps=b.powerSupply||{};return`  ${b.baseNumber}(${b.frequencyBand?.name||''}): 受電方法:${PM[ps.powerIncomingMethod]||sv(ps.powerIncomingMethod)} / 電源車接続:${ps.powerSupplyBehiclesFlg==='1'?'可':'不可'} / バッテリー:${BC[String(ps.battCls)]||sv(ps.battCls)}`;}),
     '','--- 付属装置 (Ancillary) ---',
     `削除: ${ancDel.join(', ')||'なし'}`,`追加: ${ancAdd.join(', ')||'なし'}`,
     ``,`出力日時: ${new Date().toLocaleString('ja-JP')}`,
