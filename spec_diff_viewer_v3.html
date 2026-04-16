@@ -449,7 +449,9 @@ function runDiff(){
   const nA=nets(dataA),nB=nets(dataB);
   const modA=getRuMod(dataA),modB=getRuMod(dataB);
   const site=shA.bases?.[0];
-  document.getElementById('hdr-title').textContent=`📡 諸元差分ビューア — ${site?.baseNameKanji||''} ${site?.baseNumber||''}`;
+  const siteName=`${site?.baseNameKanji||''} ${site?.baseNumber||''}`.trim();
+  document.getElementById('hdr-title').textContent=`📡 諸元差分ビューア — ${siteName}`;
+  document.title=siteName ? `📡 ${siteName}` : '諸元差分ビューア v3';
   document.getElementById('hdr-sub').textContent=`${hdA.siteId||''} | ${shA.site?.area?.name||''} | ${shA.site?.address?.detailAddressNm||''}`;
   document.getElementById('hdr-badge-a').textContent='A: '+fnameA;
   document.getElementById('hdr-badge-b').textContent='B: '+fnameB;
