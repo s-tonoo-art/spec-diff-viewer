@@ -553,12 +553,7 @@ function buildMU(shA,shB){
     const thisDevIds=(rg.devices||[]).map(d=>d.deviceId).sort().join(',');
     const oppRg2=(side==='A'?mapB:mapA)[muName];
     const oppDevIds=(oppRg2?.devices||[]).map(d=>d.deviceId).sort().join(',');
-    let chipCls='';
-    if(status==='del') chipCls='del';
-    else if(status==='new') chipCls='add';
-    else if(thisDevIds!==oppDevIds){
-      chipCls=(side==='A'&&thisDevIds&&!oppDevIds)?'del':(side==='B'&&thisDevIds&&!oppDevIds)?'add':'';
-    }
+    const chipCls=side==='A'?'del':'add';
     const devs=(rg.devices||[]).map(d=>
       `<span class="device-chip ${chipCls}">${d.deviceName||''} / ${d.equipment?.equipModelName||''}</span>`
     ).join('')||`<span class="val-muted" style="font-size:13px">装置なし (CRAN構成)</span>`;
@@ -640,13 +635,16 @@ function buildRU(shA,shB,modA,modB){
   document.getElementById('ru-tbody').innerHTML=all.map(name=>{
     const inA=setA.has(name),inB=setB.has(name);
     const mA=modA[name]||'—',mB=modB[name]||'—';
+    const modelChanged=inA&&inB&&mA!=='—'&&mB!=='—'&&mA!==mB;
     const rc=!inA?'row-new':(!inB?'row-del':'');
     const nc=!inA?'val-new':(!inB?'val-del':'val-same');
+    const aModelCls=!inA?'':(!inB||modelChanged)?'val-del':'';
+    const bModelCls=!inB?'':(!inA||modelChanged)?'val-new':'';
     return `<tr class="${rc}">
       <td class="${nc}">${name}</td>
       <td>${stBdg(inA,inB,mA!==mB)}</td>
-      <td>${inA?`<span class="${!inB?'val-del':''}">${mA}</span>`:'<span class="val-muted">—</span>'}</td>
-      <td>${inB?`<span class="${!inA?'val-new':''}">${mB}</span>`:'<span class="val-muted">—</span>'}</td>
+      <td>${inA?`<span class="${aModelCls}">${mA}</span>`:'<span class="val-muted">—</span>'}</td>
+      <td>${inB?`<span class="${bModelCls}">${mB}</span>`:'<span class="val-muted">—</span>'}</td>
     </tr>`;
   }).join('');
 }
@@ -867,8 +865,9 @@ function buildSum(hdA,hdB,shA,shB,modA,modB){
   document.getElementById('summary-cards').innerHTML=cards.map(c=>`<div class="summary-card"><div class="lbl">${c.lbl}</div><div class="val" style="color:${c.col}">${c.val}</div><div class="sub">${c.sub}</div></div>`).join('');
 
   const ruSetA=new Set(rcsA.map(r=>r.deviceIdName)),ruSetB=new Set(rcsB.map(r=>r.deviceIdName));
-  const ruDel=[...ruSetA].filter(n=>!ruSetB.has(n)).map(n=>`${n}(${modA[n]||'?'})`);
-  const ruAdd=[...ruSetB].filter(n=>!ruSetA.has(n)).map(n=>`${n}(${modB[n]||'?'})`);
+  const ruModelChg=[...ruSetA].filter(n=>ruSetB.has(n)&&modA[n]&&modB[n]&&modA[n]!=='—'&&modB[n]!=='—'&&modA[n]!==modB[n]);
+  const ruDel=[...[...ruSetA].filter(n=>!ruSetB.has(n)).map(n=>`${n}(${modA[n]||'?'})`), ...ruModelChg.map(n=>`${n}[機変:${modA[n]}]`)];
+  const ruAdd=[...[...ruSetB].filter(n=>!ruSetA.has(n)).map(n=>`${n}(${modB[n]||'?'})`), ...ruModelChg.map(n=>`${n}[機変:${modB[n]}]`)];
   const ancSetA=new Set(ancA.map(a=>a.deviceIdName)),ancSetB=new Set(ancB.map(a=>a.deviceIdName));
   const ancDel=[...ancSetA].filter(n=>!ancSetB.has(n));
   const ancAdd=[...ancSetB].filter(n=>!ancSetA.has(n));
@@ -880,11 +879,8 @@ function buildSum(hdA,hdB,shA,shB,modA,modB){
     `局名     : ${site?.baseNameKanji||''} (${site?.baseNumber||''})`,
     `siteId   : ${hdA.siteId||''}`,
     `エリア   : ${shA.site?.area?.name||''} ${shA.site?.address?.detailAddressNm||''}`,
-    '','--- 諸元ID ---',
-    `A: ${hdA.specNm} / ${hdA.specId}`,`B: ${hdB.specNm} / ${hdB.specId}`,
-    '','--- オーダー ---',
-    `A: ${ordA.map(o=>o.orderId+'('+o.project?.name+')').join(', ')}`,
-    `B: ${ordB.map(o=>o.orderId+'('+o.project?.name+')').join(', ')}`,
+    `諸元ID   : ${hdB.specNm} / ${hdB.specId}`,
+    `オーダー  : ${ordB.map(o=>o.orderId+'('+o.project?.name+')').join(', ')}`,
     '','--- 無線機グループ (MU) ---',
     `A: ${rgsA.map(r=>r.radioGroupIdName+'['+(RK[r.ranKindCd]||r.ranKindCd)+']').join(', ')}`,
     `B: ${rgsB.map(r=>r.radioGroupIdName+'['+(RK[r.ranKindCd]||r.ranKindCd)+']').join(', ')}`,
@@ -897,8 +893,17 @@ function buildSum(hdA,hdB,shA,shB,modA,modB){
     '','--- RU (無線機子機) ---',
     `削除 (${ruDel.length}台): ${ruDel.join(', ')||'なし'}`,
     `追加 (${ruAdd.length}台): ${ruAdd.join(', ')||'なし'}`,
-    '','--- アンテナ ---',
-    ...(shA.antennas||[]).map(a=>{const eq=a.equipment||{};return`  ${a.deviceIdName}: ${eq.equipModelName||'—'} 方位${sv(a.devAzimuth)}° H${sv(a.devHeight)}m Mtilt${sv(a.devMTilt)}°`;}),
+    '','--- アンテナ (B側機種) ---',
+    ...(()=>{
+      const bSectAntModels={};
+      for(const net of nets(dataB))
+        for(const sa of (net.sectorAntennas||[]))
+          if(sa.deviceIdName) bSectAntModels[sa.deviceIdName]=sa.sectorAntennaDesign?.equipModelName||'';
+      return (shB.antennas||[]).map(a=>{
+        const model=bSectAntModels[a.deviceIdName]||a.equipment?.equipModelName||'—';
+        return`  ${a.deviceIdName}: ${model} 方位${sv(a.devAzimuth)}° H${sv(a.devHeight)}m Mtilt${sv(a.devMTilt)}°`;
+      });
+    })(),
     '','--- 電源情報 ---',
     ...(shA.bases||[]).map(b=>{const ps=b.powerSupply||{};return`  ${b.baseNumber}(${b.frequencyBand?.name||''}): 受電方法:${PM[ps.powerIncomingMethod]||sv(ps.powerIncomingMethod)} / 電源車接続:${ps.powerSupplyBehiclesFlg==='1'?'可':'不可'} / バッテリー:${BC[String(ps.battCls)]||sv(ps.battCls)}`;}),
     '','--- 付属装置 (Ancillary) ---',
