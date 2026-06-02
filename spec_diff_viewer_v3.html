@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>諸元差分ビューア v3</title>
+<title>諸元差分ビューア v3.4</title>
 <style>
   :root {
     --bg:     #0d1117;
@@ -217,7 +217,7 @@
 
 <!-- UPLOAD -->
 <div id="upload-screen">
-  <h1>📡 諸元差分ビューア <span style="font-size:14px;font-weight:400;color:var(--muted);margin-left:8px">v3.3</span></h1>
+  <h1>📡 諸元差分ビューア <span style="font-size:14px;font-weight:400;color:var(--muted);margin-left:8px">v3.4</span></h1>
   <p>A（現行）とB（今回PJ反映後）のJSONを<br>クリックまたはドラッグ＆ドロップで選択</p>
   <p style="font-size:12px;color:var(--muted);margin-top:-16px;margin-bottom:24px">このビューアーは、差分をシンプルに見せます。複雑なのは業務であって、画面までそうである必要はありません。</p>
   <div class="upload-grid">
@@ -251,7 +251,7 @@
       <h1 id="hdr-title">📡 諸元差分ビューア</h1>
       <div class="subtitle" id="hdr-sub">—</div>
       <div style="font-size:11px;color:var(--muted);margin-top:2px;display:flex;align-items:center;gap:8px">
-        <span>v3.3</span>
+        <span>v3.4</span>
         <button onclick="toggleChangelog()" style="font-size:10px;padding:1px 7px;background:rgba(255,255,255,.07);border:1px solid var(--border);border-radius:4px;color:var(--muted);cursor:pointer">変更履歴</button>
       </div>
     </div>
@@ -278,7 +278,8 @@
           <td style="padding:2px 12px 4px 0;white-space:nowrap">バージョン</td>
           <td style="padding:2px 0 4px">内容</td>
         </tr>
-        <tr><td style="padding:4px 12px 2px 0;color:var(--c-new);white-space:nowrap;vertical-align:top">v3.3</td><td style="padding:4px 0 2px">ブラウザタブに局名・局番号を表示（複数タブ利用時の判別対応）</td></tr>
+        <tr><td style="padding:4px 12px 2px 0;color:var(--c-new);white-space:nowrap;vertical-align:top">v3.4</td><td style="padding:4px 0 2px">①サマリー諸元ID/オーダーをB値のみ表示に変更／②MU装置チップをA=青(撤去色)・B=赤(新設色)で固定／③サマリーアンテナをB側機種名(sectorAntennaDesign)から取得／④RU機種変更時にA=青・B=赤で色付け、削除/追加カウントに機種変更RUも含める</td></tr>
+        <tr><td style="padding:4px 12px 2px 0;color:var(--muted);white-space:nowrap;vertical-align:top">v3.3</td><td style="padding:4px 0 2px">ブラウザタブに局名・局番号を表示（複数タブ利用時の判別対応）</td></tr>
         <tr><td style="padding:4px 12px 2px 0;color:var(--muted);white-space:nowrap;vertical-align:top">v3.2</td><td style="padding:4px 0 2px">電源情報の項目名修正（受電方法・電源車接続・バッテリー有無）／4桁コード対応(0103等)／バージョン表記・変更履歴追加</td></tr>
         <tr><td style="padding:4px 12px 2px 0;color:var(--muted);white-space:nowrap;vertical-align:top">v3.1</td><td style="padding:4px 0 2px">凡例を撤去/新設/既設に変更／Ancillary機種ベース表示／ポートB側に実値表示／ポートA側色修正／MUバンドバッジ色修正／キャッチコピー追加</td></tr>
         <tr><td style="padding:4px 12px 2px 0;color:var(--muted);white-space:nowrap;vertical-align:top">v3.0</td><td style="padding:4px 0 2px">初回リリース。差分ビューア基本機能（MU/RU/アンテナ/電源/Ancillary/ポート情報）</td></tr>
@@ -860,7 +861,7 @@ function buildSum(hdA,hdB,shA,shB,modA,modB){
     {lbl:'RU (無線機子機)',val:`${rcsA.length} → ${rcsB.length}`,sub:'総数変化',col:rcsA.length!==rcsB.length?'var(--c-chg)':'var(--c-same)'},
     {lbl:'オーダー数',val:`${ordA.length} → ${ordB.length}`,sub:ordB.map(o=>o.project?.name).filter((v,i,a)=>a.indexOf(v)===i).join(', '),col:ordA.length!==ordB.length?'var(--c-chg)':'var(--c-same)'},
     {lbl:'BBU収容局',val:`${bbuA} → ${bbuB}`,sub:'全MU共通',col:bbuA!==bbuB?'var(--c-chg)':'var(--c-same)'},
-    {lbl:'Ancillary',val:`${ancA.length} → ${ancB.length}`,sub:ancB.length>ancA.length?`+${ancB.length-ancA.length}追加`:ancB.length<ancA.length?`-${ancA.length-ancB.length}削除`:'変化なし',col:ancA.length!==ancB.length?'var(--c-chg)':'var(--c-same)'},
+    {lbl:'Ancillary',val:`${ancA.length} → ${ancB.length}`,sub:ancB.length>ancA.length?`+${ancB.length-ancA.length}追加`:ancB.length<ancA.length?`-${ancA.length-ancB.length}撤去`:'変化なし',col:ancA.length!==ancB.length?'var(--c-chg)':'var(--c-same)'},
   ];
   document.getElementById('summary-cards').innerHTML=cards.map(c=>`<div class="summary-card"><div class="lbl">${c.lbl}</div><div class="val" style="color:${c.col}">${c.val}</div><div class="sub">${c.sub}</div></div>`).join('');
 
@@ -891,23 +892,37 @@ function buildSum(hdA,hdB,shA,shB,modA,modB){
     ...rgsB.map(r=>`  ${r.radioGroupIdName}: alarmL=${sv(r.alarmPatternL)} alarmW=${sv(r.alarmPatternW)} alarm5G=${sv(r.alarmPatternFiveg)}`),
     ...(muAlarm.length?['  ※アラームパターン変化:',...muAlarm]:[]),
     '','--- RU (無線機子機) ---',
-    `削除 (${ruDel.length}台): ${ruDel.join(', ')||'なし'}`,
+    `撤去 (${ruDel.length}台): ${ruDel.join(', ')||'なし'}`,
     `追加 (${ruAdd.length}台): ${ruAdd.join(', ')||'なし'}`,
-    '','--- アンテナ (B側機種) ---',
+    '','--- アンテナ ---',
     ...(()=>{
       const bSectAntModels={};
       for(const net of nets(dataB))
         for(const sa of (net.sectorAntennas||[]))
           if(sa.deviceIdName) bSectAntModels[sa.deviceIdName]=sa.sectorAntennaDesign?.equipModelName||'';
-      return (shB.antennas||[]).map(a=>{
-        const model=bSectAntModels[a.deviceIdName]||a.equipment?.equipModelName||'—';
-        return`  ${a.deviceIdName}: ${model} 方位${sv(a.devAzimuth)}° H${sv(a.devHeight)}m Mtilt${sv(a.devMTilt)}°`;
-      });
+      const aSectAntModels={};
+      for(const net of nets(dataA))
+        for(const sa of (net.sectorAntennas||[]))
+          if(sa.deviceIdName) aSectAntModels[sa.deviceIdName]=sa.sectorAntennaDesign?.equipModelName||'';
+      const antNamesB=new Set((shB.antennas||[]).map(a=>a.deviceIdName));
+      const antNamesA=new Set((shA.antennas||[]).map(a=>a.deviceIdName));
+      const antDel=(shA.antennas||[]).filter(a=>!antNamesB.has(a.deviceIdName));
+      const antAdd=(shB.antennas||[]).filter(a=>!antNamesA.has(a.deviceIdName));
+      const result=[];
+      if(antDel.length){
+        result.push('撤去');
+        antDel.forEach(a=>{const model=aSectAntModels[a.deviceIdName]||a.equipment?.equipModelName||'—';result.push(`  ${a.deviceIdName}: ${model} 方位${sv(a.devAzimuth)}° H${sv(a.devHeight)}m Mtilt${sv(a.devMTilt)}°`);});
+      } else { result.push('撤去　なし'); }
+      if(antAdd.length){
+        result.push('新設');
+        antAdd.forEach(a=>{const model=bSectAntModels[a.deviceIdName]||a.equipment?.equipModelName||'—';result.push(`  ${a.deviceIdName}: ${model} 方位${sv(a.devAzimuth)}° H${sv(a.devHeight)}m Mtilt${sv(a.devMTilt)}°`);});
+      } else { result.push('新設　なし'); }
+      return result;
     })(),
     '','--- 電源情報 ---',
     ...(shA.bases||[]).map(b=>{const ps=b.powerSupply||{};return`  ${b.baseNumber}(${b.frequencyBand?.name||''}): 受電方法:${PM[ps.powerIncomingMethod]||sv(ps.powerIncomingMethod)} / 電源車接続:${ps.powerSupplyBehiclesFlg==='1'?'可':'不可'} / バッテリー:${BC[String(ps.battCls)]||sv(ps.battCls)}`;}),
     '','--- 付属装置 (Ancillary) ---',
-    `削除: ${ancDel.join(', ')||'なし'}`,`追加: ${ancAdd.join(', ')||'なし'}`,
+    `撤去: ${ancDel.join(', ')||'なし'}`,`追加: ${ancAdd.join(', ')||'なし'}`,
     ``,`出力日時: ${new Date().toLocaleString('ja-JP')}`,
     '======================================',
   ];
