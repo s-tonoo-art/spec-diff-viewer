@@ -884,15 +884,17 @@ function buildSum(hdA,hdB,shA,shB,modA,modB){
     `オーダー  : ${ordB.map(o=>o.orderId+'('+o.project?.name+')').join(', ')}`,
     '','--- 無線機グループ (MU) ---',
     ...(()=>{
-      const namesA=new Set(rgsA.map(r=>r.radioGroupIdName));
-      const namesB=new Set(rgsB.map(r=>r.radioGroupIdName));
-      const muDel=rgsA.filter(r=>!namesB.has(r.radioGroupIdName));
-      const muAdd=rgsB.filter(r=>!namesA.has(r.radioGroupIdName));
+      const devsA=rgsA.flatMap(r=>(r.devices||[]).map(d=>({id:d.deviceId,name:d.deviceName,model:d.equipment?.equipModelName||''})));
+      const devsB=rgsB.flatMap(r=>(r.devices||[]).map(d=>({id:d.deviceId,name:d.deviceName,model:d.equipment?.equipModelName||''})));
+      const idsB=new Set(devsB.map(d=>d.id));
+      const idsA=new Set(devsA.map(d=>d.id));
+      const muDel=devsA.filter(d=>!idsB.has(d.id));
+      const muAdd=devsB.filter(d=>!idsA.has(d.id));
       const result=[];
       result.push(muDel.length?'撤去':'撤去　なし');
-      muDel.forEach(r=>result.push(`  ${r.radioGroupIdName} / ${RK[r.ranKindCd]||r.ranKindCd}`));
+      muDel.forEach(d=>result.push(`  ${d.name} / ${d.model}`));
       result.push(muAdd.length?'新設':'新設　なし');
-      muAdd.forEach(r=>result.push(`  ${r.radioGroupIdName} / ${RK[r.ranKindCd]||r.ranKindCd}`));
+      muAdd.forEach(d=>result.push(`  ${d.name} / ${d.model}`));
       return result;
     })(),
     `BBU収容局: ${rgsA[0]?.bbuAccomGcBbt?.name||'—'} → ${rgsB[0]?.bbuAccomGcBbt?.name||'—'}`,
