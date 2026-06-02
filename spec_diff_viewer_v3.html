@@ -883,8 +883,18 @@ function buildSum(hdA,hdB,shA,shB,modA,modB){
     `諸元ID   : ${hdB.specNm} / ${hdB.specId}`,
     `オーダー  : ${ordB.map(o=>o.orderId+'('+o.project?.name+')').join(', ')}`,
     '','--- 無線機グループ (MU) ---',
-    `A: ${rgsA.map(r=>r.radioGroupIdName+'['+(RK[r.ranKindCd]||r.ranKindCd)+']').join(', ')}`,
-    `B: ${rgsB.map(r=>r.radioGroupIdName+'['+(RK[r.ranKindCd]||r.ranKindCd)+']').join(', ')}`,
+    ...(()=>{
+      const namesA=new Set(rgsA.map(r=>r.radioGroupIdName));
+      const namesB=new Set(rgsB.map(r=>r.radioGroupIdName));
+      const muDel=rgsA.filter(r=>!namesB.has(r.radioGroupIdName));
+      const muAdd=rgsB.filter(r=>!namesA.has(r.radioGroupIdName));
+      const result=[];
+      result.push(muDel.length?'撤去':'撤去　なし');
+      muDel.forEach(r=>result.push(`  ${r.radioGroupIdName} / ${RK[r.ranKindCd]||r.ranKindCd}`));
+      result.push(muAdd.length?'新設':'新設　なし');
+      muAdd.forEach(r=>result.push(`  ${r.radioGroupIdName} / ${RK[r.ranKindCd]||r.ranKindCd}`));
+      return result;
+    })(),
     `BBU収容局: ${rgsA[0]?.bbuAccomGcBbt?.name||'—'} → ${rgsB[0]?.bbuAccomGcBbt?.name||'—'}`,
     '','  [A] MUアラームパターン',
     ...rgsA.map(r=>`  ${r.radioGroupIdName}: alarmL=${sv(r.alarmPatternL)} alarmW=${sv(r.alarmPatternW)}`),
@@ -894,7 +904,7 @@ function buildSum(hdA,hdB,shA,shB,modA,modB){
     '','--- RU (無線機子機) ---',
     `撤去 (${ruDel.length}台): ${ruDel.join(', ')||'なし'}`,
     `追加 (${ruAdd.length}台): ${ruAdd.join(', ')||'なし'}`,
-    '','--- アンテナ ---',
+    '','--- アンテナ (機種) ---',
     ...(()=>{
       const bSectAntModels={};
       for(const net of nets(dataB))
@@ -904,19 +914,24 @@ function buildSum(hdA,hdB,shA,shB,modA,modB){
       for(const net of nets(dataA))
         for(const sa of (net.sectorAntennas||[]))
           if(sa.deviceIdName) aSectAntModels[sa.deviceIdName]=sa.sectorAntennaDesign?.equipModelName||'';
-      const antNamesB=new Set((shB.antennas||[]).map(a=>a.deviceIdName));
-      const antNamesA=new Set((shA.antennas||[]).map(a=>a.deviceIdName));
-      const antDel=(shA.antennas||[]).filter(a=>!antNamesB.has(a.deviceIdName));
-      const antAdd=(shB.antennas||[]).filter(a=>!antNamesA.has(a.deviceIdName));
+      const mapA=Object.fromEntries((shA.antennas||[]).map(a=>[a.deviceIdName,a]));
+      const mapB=Object.fromEntries((shB.antennas||[]).map(a=>[a.deviceIdName,a]));
+      const allNames=[...new Set([...(shA.antennas||[]).map(a=>a.deviceIdName),...(shB.antennas||[]).map(a=>a.deviceIdName)])].sort();
+      const delLines=[],addLines=[];
+      for(const name of allNames){
+        const aAnt=mapA[name],bAnt=mapB[name];
+        const aModel=aAnt?(aSectAntModels[name]||aAnt.equipment?.equipModelName||'—'):'';
+        const bModel=bAnt?(bSectAntModels[name]||bAnt.equipment?.equipModelName||'—'):'';
+        if(aAnt&&(!bAnt||aModel!==bModel))
+          delLines.push(`  ${name}: ${aModel} 方位${sv(aAnt.devAzimuth)}° H${sv(aAnt.devHeight)}m Mtilt${sv(aAnt.devMTilt)}°`);
+        if(bAnt&&(!aAnt||aModel!==bModel))
+          addLines.push(`  ${name}: ${bModel} 方位${sv(bAnt.devAzimuth)}° H${sv(bAnt.devHeight)}m Mtilt${sv(bAnt.devMTilt)}°`);
+      }
       const result=[];
-      if(antDel.length){
-        result.push('撤去');
-        antDel.forEach(a=>{const model=aSectAntModels[a.deviceIdName]||a.equipment?.equipModelName||'—';result.push(`  ${a.deviceIdName}: ${model} 方位${sv(a.devAzimuth)}° H${sv(a.devHeight)}m Mtilt${sv(a.devMTilt)}°`);});
-      } else { result.push('撤去　なし'); }
-      if(antAdd.length){
-        result.push('新設');
-        antAdd.forEach(a=>{const model=bSectAntModels[a.deviceIdName]||a.equipment?.equipModelName||'—';result.push(`  ${a.deviceIdName}: ${model} 方位${sv(a.devAzimuth)}° H${sv(a.devHeight)}m Mtilt${sv(a.devMTilt)}°`);});
-      } else { result.push('新設　なし'); }
+      result.push(delLines.length?'撤去':'撤去　なし');
+      delLines.forEach(l=>result.push(l));
+      result.push(addLines.length?'新設':'新設　なし');
+      addLines.forEach(l=>result.push(l));
       return result;
     })(),
     '','--- 電源情報 ---',
