@@ -211,6 +211,82 @@
   @media (max-width:700px) {
     .mu-compare-grid, .upload-grid { grid-template-columns:1fr; }
   }
+
+  /* ===== 印刷用スタイル ===== */
+  @media print {
+    /* 用紙設定：A4横 余白小さめ */
+    @page { size: A4 landscape; margin: 12mm 10mm; }
+
+    /* ダークテーマを白紙ベースに変換 */
+    :root {
+      --bg:     #ffffff;
+      --panel:  #f6f8fa;
+      --panel2: #f0f2f4;
+      --border: #d0d7de;
+      --text:   #1f2328;
+      --muted:  #636c76;
+      --a-color: #0969da;
+      --b-color: #cf222e;
+      --a-bg: rgba(9,105,218,0.06);
+      --b-bg: rgba(207,34,46,0.06);
+      --c-del:  #0969da;
+      --c-new:  #cf222e;
+      --c-chg:  #7c3aed;
+      --c-same: #1f2328;
+    }
+
+    /* 非表示にする要素 */
+    #upload-screen,
+    .reload-btn,
+    .print-btn,
+    .copy-btn,
+    button[onclick="toggleChangelog()"],
+    #changelog-panel { display: none !important; }
+
+    body {
+      background: #ffffff;
+      color: #1f2328;
+      font-size: 11pt;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    header {
+      position: static;
+      background: #f6f8fa;
+      border-bottom: 2px solid #d0d7de;
+      padding: 8px 16px;
+    }
+
+    main { padding: 12px; max-width: 100%; }
+
+    /* セクションをなるべくページ内に収める */
+    .section { margin-bottom: 20px; break-inside: avoid; }
+    .section-title { font-size: 10pt; padding-bottom: 6px; margin-bottom: 10px; }
+
+    /* MUグリッドは印刷時1列 */
+    .mu-compare-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+    .mu-item { break-inside: avoid; }
+
+    /* テーブル */
+    .diff-table { font-size: 10pt; }
+    .diff-table th { padding: 6px 10px; }
+    .diff-table td { padding: 5px 10px; }
+
+    /* コピーブロックはサマリーテキストのみ表示 */
+    .copy-block {
+      border: 1px solid #d0d7de;
+      background: #f6f8fa;
+    }
+    .copy-block pre { font-size: 10pt; }
+
+    /* バッジ */
+    .badge { border-width: 1px; }
+
+    /* サマリーカード */
+    .summary-card { break-inside: avoid; border: 1px solid #d0d7de; }
+    .summary-grid { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+  }
 </style>
 </head>
 <body>
@@ -259,6 +335,7 @@
       <span class="badge badge-a" id="hdr-badge-a">A</span>
       <span style="color:var(--muted);font-size:20px">→</span>
       <span class="badge badge-b" id="hdr-badge-b">B</span>
+      <button class="reload-btn print-btn" onclick="window.print()">🖨 印刷</button>
       <button class="reload-btn" onclick="resetToUpload()">⟲ 再選択</button>
     </div>
   </header>
