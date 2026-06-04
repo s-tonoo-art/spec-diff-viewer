@@ -264,6 +264,12 @@
     .section { margin-bottom: 20px; }
     .section-title { font-size: 10pt; padding-bottom: 6px; margin-bottom: 10px; }
 
+    /* ページ区切り：P1=サマリー / P2=諸元ヘッダー+MU / P3=RU / P4=アンテナ / P5=電源以降 */
+    #sec-header { break-before: page; }
+    #sec-ru     { break-before: page; }
+    #sec-ant    { break-before: page; }
+    #sec-power  { break-before: page; }
+
     /* MUグリッド：align-items:start で左右パネルを内容高さに収める */
     .mu-compare-grid { grid-template-columns: 1fr 1fr; gap: 10px; align-items: start; }
     .mu-item { break-inside: avoid; }
@@ -364,7 +370,7 @@
       </table>
     </div>
 
-    <div class="section">
+    <div class="section" id="sec-summary">
       <div class="section-title">📊 変化サマリー</div>
       <div class="summary-grid" id="summary-cards"></div>
       <div class="copy-block">
@@ -373,17 +379,17 @@
       </div>
     </div>
 
-    <div class="section">
+    <div class="section" id="sec-header">
       <div class="section-title">🗂 諸元ヘッダー</div>
       <div id="head-section"></div>
     </div>
 
-    <div class="section">
+    <div class="section" id="sec-mu">
       <div class="section-title">📻 無線機グループリスト (MU)</div>
       <div class="mu-compare-grid" id="mu-section"></div>
     </div>
 
-    <div class="section">
+    <div class="section" id="sec-ru">
       <div class="section-title">📡 RU（無線機子機）一覧</div>
       <table class="diff-table">
         <thead><tr><th>RU名</th><th>状態</th><th>A 機種</th><th>B 機種</th></tr></thead>
@@ -391,7 +397,7 @@
       </table>
     </div>
 
-    <div class="section">
+    <div class="section" id="sec-ant">
       <div class="section-title">🔺 アンテナリスト</div>
       <table class="diff-table">
         <thead><tr>
@@ -411,7 +417,7 @@
       </div>
     </div>
 
-    <div class="section">
+    <div class="section" id="sec-power">
       <div class="section-title">⚡ 電源情報 (bases)</div>
       <table class="diff-table">
         <thead><tr>
