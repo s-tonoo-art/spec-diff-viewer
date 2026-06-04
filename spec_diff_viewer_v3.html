@@ -215,7 +215,7 @@
   /* ===== 印刷用スタイル ===== */
   @media print {
     /* 用紙設定：A4横 余白小さめ */
-    @page { size: A4 landscape; margin: 12mm 10mm; }
+    @page { margin: 12mm 10mm; }
 
     /* ダークテーマを白紙ベースに変換 */
     :root {
@@ -421,7 +421,7 @@
       <div class="section-title">⚡ 電源情報 (bases)</div>
       <table class="diff-table">
         <thead><tr>
-          <th>基地局番号</th><th>バンド</th><th>受電方法</th><th>電源車接続</th><th>バッテリー有無</th><th>状態</th>
+          <th>基地局番号</th><th>バンド</th><th>受電情報</th><th>電源車接続</th><th>バッテリー有無</th><th>状態</th>
         </tr></thead>
         <tbody id="power-tbody"></tbody>
       </table>
@@ -506,7 +506,7 @@ function resetToUpload(){
 const sv=(v)=>(v!==null&&v!==undefined&&v!=='')?String(v):'—';
 const eqJ=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 const PM={'0101':'単相二線','0102':'単相三線','0103':'三相三線+単相二線','0104':'三相三線','0105':'その他','01':'三相三線+単相二線','02':'単相二線','03':'単相三線','04':'三相三線','05':'その他'};
-const BC={'1':'なし','2':'有(UPS)','3':'有(24H以上)','4':'有(24H未満)','5':'その他'};
+const BC={'0':'無','1':'なし','2':'有(3H以上)','3':'有(24H以上)','4':'有(24H未満)','5':'その他'};
 const RK={'1':'LTE','2':'5G NR','3':'3G'};
 const BD={'01':'B1(2.1G)','02':'B19(800M)','03':'B8(900M)','04':'B3(1.7G)','05':'B11(1.5G)'};
 
@@ -1021,7 +1021,7 @@ function buildSum(hdA,hdB,shA,shB,modA,modB){
       return result;
     })(),
     '','--- 電源情報 ---',
-    ...(shA.bases||[]).map(b=>{const ps=b.powerSupply||{};return`  ${b.baseNumber}(${b.frequencyBand?.name||''}): 受電方法:${PM[ps.powerIncomingMethod]||sv(ps.powerIncomingMethod)} / 電源車接続:${ps.powerSupplyBehiclesFlg==='1'?'可':'不可'} / バッテリー:${BC[String(ps.battCls)]||sv(ps.battCls)}`;}),
+    ...(shA.bases||[]).map(b=>{const ps=b.powerSupply||{};return`  ${b.baseNumber}(${b.frequencyBand?.name||''}): 受電情報：${PM[ps.powerIncomingMethod]||sv(ps.powerIncomingMethod)} / 電源車接続：${ps.powerSupplyBehiclesFlg==='1'?'可':'不可'} / バッテリー有無：${BC[String(ps.battCls)]||sv(ps.battCls)}`;}),
     '','--- 付属装置 (Ancillary) ---',
     `撤去: ${ancDel.join(', ')||'なし'}`,`追加: ${ancAdd.join(', ')||'なし'}`,
     ``,`出力日時: ${new Date().toLocaleString('ja-JP')}`,
