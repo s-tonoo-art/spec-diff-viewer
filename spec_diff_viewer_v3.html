@@ -260,12 +260,12 @@
 
     main { padding: 12px; max-width: 100%; }
 
-    /* セクションをなるべくページ内に収める */
-    .section { margin-bottom: 20px; break-inside: avoid; }
+    /* セクションは分割OK（section全体にavoidをかけると丸ごと次ページに送られて余白が生まれる） */
+    .section { margin-bottom: 20px; }
     .section-title { font-size: 10pt; padding-bottom: 6px; margin-bottom: 10px; }
 
-    /* MUグリッドは印刷時1列 */
-    .mu-compare-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+    /* MUグリッド：align-items:start で左右パネルを内容高さに収める */
+    .mu-compare-grid { grid-template-columns: 1fr 1fr; gap: 10px; align-items: start; }
     .mu-item { break-inside: avoid; }
 
     /* テーブル */
