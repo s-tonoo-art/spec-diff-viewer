@@ -292,6 +292,9 @@
     /* サマリーカード */
     .summary-card { break-inside: avoid; border: 1px solid #d0d7de; }
     .summary-grid { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+
+    /* 動的ページ区切り解除（JS で付与） */
+    .no-page-break { break-before: auto !important; }
   }
 </style>
 </head>
@@ -956,8 +959,6 @@ function buildSum(hdA,hdB,shA,shB,modA,modB){
   const ancSetA=new Set(ancA.map(a=>a.deviceIdName)),ancSetB=new Set(ancB.map(a=>a.deviceIdName));
   const ancDel=[...ancSetA].filter(n=>!ancSetB.has(n));
   const ancAdd=[...ancSetB].filter(n=>!ancSetA.has(n));
-  const muAlarm=[];
-  rgsA.forEach(rg=>{const m=rgsB.find(r=>r.radioGroupIdName===rg.radioGroupIdName);if(m&&rg.alarmPatternL!==m.alarmPatternL)muAlarm.push(`  ${rg.radioGroupIdName}: alarmL ${sv(rg.alarmPatternL)} → ${sv(m.alarmPatternL)}`);});
   const site=shA.bases?.[0];
   const lines=[
     '========== 諸元差分サマリー ==========',
@@ -982,11 +983,6 @@ function buildSum(hdA,hdB,shA,shB,modA,modB){
       return result;
     })(),
     `BBU収容局: ${rgsA[0]?.bbuAccomGcBbt?.name||'—'} → ${rgsB[0]?.bbuAccomGcBbt?.name||'—'}`,
-    '','  [A] MUアラームパターン',
-    ...rgsA.map(r=>`  ${r.radioGroupIdName}: alarmL=${sv(r.alarmPatternL)} alarmW=${sv(r.alarmPatternW)}`),
-    '  [B] MUアラームパターン',
-    ...rgsB.map(r=>`  ${r.radioGroupIdName}: alarmL=${sv(r.alarmPatternL)} alarmW=${sv(r.alarmPatternW)} alarm5G=${sv(r.alarmPatternFiveg)}`),
-    ...(muAlarm.length?['  ※アラームパターン変化:',...muAlarm]:[]),
     '','--- RU (無線機子機) ---',
     `撤去 (${ruDel.length}台): ${ruDel.join(', ')||'なし'}`,
     `追加 (${ruAdd.length}台): ${ruAdd.join(', ')||'なし'}`,
@@ -1041,6 +1037,41 @@ function toggleC(id){
   document.getElementById(id).classList.toggle('open');
   document.getElementById('chev-'+id).classList.toggle('open');
 }
+
+// 動的ページ区切り：印刷前にセクション高さを測り、収まるなら break-before を解除
+(function(){
+  const BREAK_SECTIONS = ['#sec-header','#sec-ru','#sec-ant','#sec-power'];
+  // A4横（210mm）、上下余白12mm → 印刷可能高さ186mm、96dpiで約703px
+  const PAGE_H_PX = 703;
+
+  function adjustBreaks(){
+    const headerH = document.querySelector('header')?.offsetHeight || 0;
+    const sumH    = document.querySelector('#sec-summary')?.offsetHeight || 0;
+    let used = headerH + sumH + 20;
+
+    BREAK_SECTIONS.forEach(sel => {
+      const el = document.querySelector(sel);
+      if(!el) return;
+      const h = el.offsetHeight;
+      if(used + h <= PAGE_H_PX){
+        el.classList.add('no-page-break');
+        used += h;
+      } else {
+        el.classList.remove('no-page-break');
+        used = headerH + h;
+      }
+    });
+  }
+
+  function restoreBreaks(){
+    BREAK_SECTIONS.forEach(sel => {
+      document.querySelector(sel)?.classList.remove('no-page-break');
+    });
+  }
+
+  window.addEventListener('beforeprint', adjustBreaks);
+  window.addEventListener('afterprint',  restoreBreaks);
+})();
 </script>
 </body>
 </html>
