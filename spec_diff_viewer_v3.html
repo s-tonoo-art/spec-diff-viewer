@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>諸元差分ビューア v3.5</title>
+<title>諸元差分ビューア v3.6</title>
 <style>
   :root {
     --bg:     #0d1117;
@@ -202,6 +202,7 @@
   }
   .device-chip.del { background:rgba(88,166,255,.1);  border-color:rgba(88,166,255,.4); color:var(--c-del); }
   .device-chip.add { background:rgba(248,81,73,.1);   border-color:rgba(248,81,73,.4);  color:var(--c-new); }
+  .device-chip.chg { background:rgba(210,168,255,.1); border-color:rgba(210,168,255,.4); color:var(--c-chg); }
 
   .chevron { display:inline-block; transition:transform .2s; font-size:12px; color:var(--muted); }
   .chevron.open { transform:rotate(90deg); }
@@ -302,7 +303,7 @@
 
 <!-- UPLOAD -->
 <div id="upload-screen">
-  <h1>📡 諸元差分ビューア <span style="font-size:14px;font-weight:400;color:var(--muted);margin-left:8px">v3.5</span></h1>
+  <h1>📡 諸元差分ビューア <span style="font-size:14px;font-weight:400;color:var(--muted);margin-left:8px">v3.6</span></h1>
   <p>A（現行）とB（今回PJ反映後）のJSONを<br>クリックまたはドラッグ＆ドロップで選択</p>
   <p style="font-size:12px;color:var(--muted);margin-top:-16px;margin-bottom:24px">このビューアーは、差分をシンプルに見せます。複雑なのは業務であって、画面までそうである必要はありません。</p>
   <div class="upload-grid">
@@ -336,7 +337,7 @@
       <h1 id="hdr-title">📡 諸元差分ビューア</h1>
       <div class="subtitle" id="hdr-sub">—</div>
       <div style="font-size:11px;color:var(--muted);margin-top:2px;display:flex;align-items:center;gap:8px">
-        <span>v3.5</span>
+        <span>v3.6</span>
         <button onclick="toggleChangelog()" style="font-size:10px;padding:1px 7px;background:rgba(255,255,255,.07);border:1px solid var(--border);border-radius:4px;color:var(--muted);cursor:pointer">変更履歴</button>
       </div>
     </div>
@@ -364,7 +365,8 @@
           <td style="padding:2px 12px 4px 0;white-space:nowrap">バージョン</td>
           <td style="padding:2px 0 4px">内容</td>
         </tr>
-        <tr><td style="padding:4px 12px 2px 0;color:var(--c-new);white-space:nowrap;vertical-align:top">v3.5</td><td style="padding:4px 0 2px">印刷ボタン追加（A4横・余白最小化）／印刷時ダークテーマを白背景に自動変換／不要UI非表示・ページ区切り最適化</td></tr>
+        <tr><td style="padding:4px 12px 2px 0;color:var(--c-new);white-space:nowrap;vertical-align:top">v3.6</td><td style="padding:4px 0 2px">サマリーのアラームパターン表示を削除／印刷ページ区切りを動的制御（収まるなら改ページ解除）／MU装置チップをdeviceId単位で色判定に修正（既設は無色、機種変更は紫、片側のみ青赤）</td></tr>
+        <tr><td style="padding:4px 12px 2px 0;color:var(--muted);white-space:nowrap;vertical-align:top">v3.5</td><td style="padding:4px 0 2px">印刷ボタン追加（A4横・余白最小化）／印刷時ダークテーマを白背景に自動変換／不要UI非表示・ページ区切り最適化</td></tr>
         <tr><td style="padding:4px 12px 2px 0;color:var(--muted);white-space:nowrap;vertical-align:top">v3.4</td><td style="padding:4px 0 2px">①サマリー諸元ID/オーダーをB値のみ表示に変更／②MU装置チップをA=青(撤去色)・B=赤(新設色)で固定／③サマリーアンテナをB側機種名(sectorAntennaDesign)から取得／④RU機種変更時にA=青・B=赤で色付け、削除/追加カウントに機種変更RUも含める</td></tr>
         <tr><td style="padding:4px 12px 2px 0;color:var(--muted);white-space:nowrap;vertical-align:top">v3.3</td><td style="padding:4px 0 2px">ブラウザタブに局名・局番号を表示（複数タブ利用時の判別対応）</td></tr>
         <tr><td style="padding:4px 12px 2px 0;color:var(--muted);white-space:nowrap;vertical-align:top">v3.2</td><td style="padding:4px 0 2px">電源情報の項目名修正（受電方法・電源車接続・バッテリー有無）／4桁コード対応(0103等)／バージョン表記・変更履歴追加</td></tr>
@@ -637,14 +639,17 @@ function buildMU(shA,shB){
     else if(status==='del') st=bdg('del','撤去');
     else st=bdg('new','新設');
 
-    // devicesチップ：A/B間のdevice差分をIDで比較して色決定
-    const thisDevIds=(rg.devices||[]).map(d=>d.deviceId).sort().join(',');
+    // devicesチップ：A/B間でdeviceIdが一致する装置は既設(無色)、機種だけ違えば変更(紫)、片側のみは撤去/新設
     const oppRg2=(side==='A'?mapB:mapA)[muName];
-    const oppDevIds=(oppRg2?.devices||[]).map(d=>d.deviceId).sort().join(',');
-    const chipCls=side==='A'?'del':'add';
-    const devs=(rg.devices||[]).map(d=>
-      `<span class="device-chip ${chipCls}">${d.deviceName||''} / ${d.equipment?.equipModelName||''}</span>`
-    ).join('')||`<span class="val-muted" style="font-size:13px">装置なし (CRAN構成)</span>`;
+    const oppDevById=Object.fromEntries((oppRg2?.devices||[]).map(d=>[d.deviceId,d]));
+    const devs=(rg.devices||[]).map(d=>{
+      const oppD=oppDevById[d.deviceId];
+      let cls;
+      if(!oppD) cls=side==='A'?'del':'add';
+      else if((d.equipment?.equipModelName||'')!==(oppD.equipment?.equipModelName||'')) cls='chg';
+      else cls='';
+      return `<span class="device-chip ${cls}">${d.deviceName||''} / ${d.equipment?.equipModelName||''}</span>`;
+    }).join('')||`<span class="val-muted" style="font-size:13px">装置なし (CRAN構成)</span>`;
 
     const ca=(rg.caConfigs||[]).map(c=>BD[c.frequencyBandCd]||c.frequencyBandCd).filter(Boolean).join(' + ')||'—';
 
