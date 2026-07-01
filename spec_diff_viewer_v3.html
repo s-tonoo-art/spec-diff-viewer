@@ -426,9 +426,19 @@
       <div class="section-title">⚡ 電源情報 (bases)</div>
       <table class="diff-table">
         <thead><tr>
-          <th>基地局番号</th><th>バンド</th><th>受電情報</th><th>電源車接続</th><th>バッテリー有無</th><th>状態</th>
+          <th>基地局番号</th><th>バンド</th><th>受電方法</th><th>電源車接続</th><th>バッテリー有無</th><th>状態</th>
         </tr></thead>
         <tbody id="power-tbody"></tbody>
+      </table>
+    </div>
+
+    <div class="section" id="sec-sector">
+      <div class="section-title">📡 セクタ情報 (B)</div>
+      <table class="diff-table">
+        <thead><tr>
+          <th>バンド</th><th>セクタ制御番号</th><th>セクタ名</th><th>親RRU Cascade</th><th>RRU ExtAlarm</th>
+        </tr></thead>
+        <tbody id="sector-tbody"></tbody>
       </table>
     </div>
 
@@ -510,7 +520,8 @@ function resetToUpload(){
 // Helpers
 const sv=(v)=>(v!==null&&v!==undefined&&v!=='')?String(v):'—';
 const eqJ=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
-const PM={'0101':'単相二線','0102':'単相三線','0103':'三相三線+単相二線','0104':'三相三線','0105':'その他','01':'三相三線+単相二線','02':'単相二線','03':'単相三線','04':'三相三線','05':'その他'};
+const PM={'01':'三相三線','02':'単相三線','03':'単相二線'};
+function parsePIM(code){const s=String(code||'').trim();return s.match(/.{1,2}/g)?.map(c=>PM[c]||c).join(' / ')||'—';}
 const BC={'0':'無','1':'なし','2':'有(3H以上)','3':'有(24H以上)','4':'有(24H未満)','5':'その他'};
 const RK={'1':'LTE','2':'5G NR','3':'3G'};
 const BD={'01':'B1(2.1G)','02':'B19(800M)','03':'B8(900M)','04':'B3(1.7G)','05':'B11(1.5G)'};
@@ -551,6 +562,7 @@ function runDiff(){
   buildRU(shA,shB,modA,modB);
   buildAnt(shA,shB,nA,nB);
   buildPow(shA,shB);
+  buildSector(dataB);
   buildAnc(shA,shB);
   buildPort(nA,nB);
   buildSum(hdA,hdB,shA,shB,modA,modB);
@@ -790,7 +802,7 @@ function buildPow(shA,shB){
   const mapA=Object.fromEntries((shA.bases||[]).map(b=>[b.baseNumber,b]));
   const mapB=Object.fromEntries((shB.bases||[]).map(b=>[b.baseNumber,b]));
   const all=[...new Set([...Object.keys(mapA),...Object.keys(mapB)])];
-  function dec(ps){return{meth:PM[ps.powerIncomingMethod]||sv(ps.powerIncomingMethod),veh:ps.powerSupplyBehiclesFlg==='1'?'可':'不可',batt:BC[String(ps.battCls)]||sv(ps.battCls)};}
+  function dec(ps){return{meth:parsePIM(ps.powerIncomingMethod),veh:ps.powerSupplyBehiclesFlg==='1'?'可':'不可',batt:BC[String(ps.battCls)]||sv(ps.battCls)};}
   function cd(va,vb){return va===vb?va:`<span class="val-del">${va}</span>→<span class="val-new">${vb}</span>`;}
   document.getElementById('power-tbody').innerHTML=all.map(bn=>{
     const bA=mapA[bn],bB=mapB[bn];
@@ -799,6 +811,23 @@ function buildPow(shA,shB){
     const chg=dA.meth!==dB.meth||dA.veh!==dB.veh||dA.batt!==dB.batt;
     return `<tr><td>${bn}</td><td>${band}</td><td>${cd(dA.meth,dB.meth)}</td><td>${cd(dA.veh,dB.veh)}</td><td>${cd(dA.batt,dB.batt)}</td><td>${chg?bdg('chg','変更'):bdg('same','既設')}</td></tr>`;
   }).join('');
+}
+
+function buildSector(dataB){
+  const rows=[];
+  for(const net of(dataB?.responseBody?.networks||[])){
+    const band=net.frequencyBand?.name||'';
+    for(const sec of(net.sectors||[])){
+      rows.push(`<tr>
+        <td>${band}</td>
+        <td>${sv(sec.sectorControlNumber)}</td>
+        <td>${sv(sec.sectorName)}</td>
+        <td>${sv(sec.parentRruCascadeName||sec.parentRruCascade)}</td>
+        <td>${sv(sec.rruExtAlarm)}</td>
+      </tr>`);
+    }
+  }
+  document.getElementById('sector-tbody').innerHTML=rows.join('')||'<tr><td colspan="5">データなし</td></tr>';
 }
 
 function buildAnc(shA,shB){
@@ -981,16 +1010,29 @@ function buildSum(hdA,hdB,shA,shB,modA,modB){
       const muDel=devsA.filter(d=>!idsB.has(d.id));
       const muAdd=devsB.filter(d=>!idsA.has(d.id));
       const result=[];
-      result.push(muDel.length?'撤去':'撤去　なし');
-      muDel.forEach(d=>result.push(`  ${d.name} / ${d.model}`));
-      result.push(muAdd.length?'新設':'新設　なし');
-      muAdd.forEach(d=>result.push(`  ${d.name} / ${d.model}`));
+      if(muDel.length===0&&muAdd.length===0){
+        result.push('既設変更無');
+        devsB.forEach(d=>result.push(`  ${d.name} / ${d.model}`));
+      } else {
+        result.push(muDel.length?'撤去':'撤去　なし');
+        muDel.forEach(d=>result.push(`  ${d.name} / ${d.model}`));
+        result.push(muAdd.length?'新設':'新設　なし');
+        muAdd.forEach(d=>result.push(`  ${d.name} / ${d.model}`));
+      }
       return result;
     })(),
     `BBU収容局: ${rgsA[0]?.bbuAccomGcBbt?.name||'—'} → ${rgsB[0]?.bbuAccomGcBbt?.name||'—'}`,
     '','--- RU (無線機子機) ---',
-    `撤去 (${ruDel.length}台): ${ruDel.join(', ')||'なし'}`,
-    `追加 (${ruAdd.length}台): ${ruAdd.join(', ')||'なし'}`,
+    ...(()=>{
+      if(ruDel.length===0&&ruAdd.length===0){
+        const ruSame=numSort([...ruSetB]);
+        return ['既設変更無',...ruSame.map(n=>`  ${n}(${modB[n]||'?'})`)];
+      }
+      return [
+        `撤去 (${ruDel.length}台): ${ruDel.join(', ')||'なし'}`,
+        `追加 (${ruAdd.length}台): ${ruAdd.join(', ')||'なし'}`,
+      ];
+    })(),
     '','--- アンテナ (機種) ---',
     ...(()=>{
       const bSectAntModels={};
@@ -1015,14 +1057,23 @@ function buildSum(hdA,hdB,shA,shB,modA,modB){
           addLines.push(`  ${name}: ${bModel} 方位${sv(bAnt.devAzimuth)}° H${sv(bAnt.devHeight)}m Mtilt${sv(bAnt.devMTilt)}°`);
       }
       const result=[];
-      result.push(delLines.length?'撤去':'撤去　なし');
-      delLines.forEach(l=>result.push(l));
-      result.push(addLines.length?'新設':'新設　なし');
-      addLines.forEach(l=>result.push(l));
+      if(delLines.length===0&&addLines.length===0){
+        result.push('既設変更無');
+        for(const name of allNames){
+          const bAnt=mapB[name];
+          if(bAnt){
+            const bModel=bSectAntModels[name]||bAnt.equipment?.equipModelName||'—';
+            result.push(`  ${name}: ${bModel} 方位${sv(bAnt.devAzimuth)}° H${sv(bAnt.devHeight)}m Mtilt${sv(bAnt.devMTilt)}°`);
+          }
+        }
+      } else {
+        result.push(delLines.length?'撤去':'撤去　なし');
+        delLines.forEach(l=>result.push(l));
+        result.push(addLines.length?'新設':'新設　なし');
+        addLines.forEach(l=>result.push(l));
+      }
       return result;
     })(),
-    '','--- 電源情報 ---',
-    ...(shA.bases||[]).map(b=>{const ps=b.powerSupply||{};return`  ${b.baseNumber}(${b.frequencyBand?.name||''}): 受電情報：${PM[ps.powerIncomingMethod]||sv(ps.powerIncomingMethod)} / 電源車接続：${ps.powerSupplyBehiclesFlg==='1'?'可':'不可'} / バッテリー有無：${BC[String(ps.battCls)]||sv(ps.battCls)}`;}),
     '','--- 付属装置 (Ancillary) ---',
     `撤去: ${ancDel.join(', ')||'なし'}`,`追加: ${ancAdd.join(', ')||'なし'}`,
     ``,`出力日時: ${new Date().toLocaleString('ja-JP')}`,
