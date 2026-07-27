@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>図面チェックリスト v1.0</title>
+<style>
+  :root {
+    --bg:     #0d1117;
+    --panel:  #161b22;
+    --panel2: #1c2128;
+    --border: #30363d;
+    --text:   #e6edf3;
+    --muted:  #8b949e;
+    --accent: #58a6ff;
+    --ok:     #3fb950;
+    --ng:     #f85149;
+    --warn:   #d2a8ff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: 'Hiragino Kaku Gothic ProN','Meiryo','Yu Gothic',sans-serif;
+    font-size: 15px; line-height: 1.7; min-height: 100vh;
+  }
+
+  /* UPLOAD */
+  #upload-screen {
+    min-height: 100vh; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; padding: 32px;
+  }
+  #upload-screen h1 { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+  #upload-screen p  { color: var(--muted); margin-bottom: 32px; font-size: 14px; text-align: center; }
+  .upload-box {
+    background: var(--panel); border: 2px dashed var(--border);
+    border-radius: 14px; padding: 32px 48px; text-align: center; cursor: pointer;
+    transition: border-color .2s, background .2s; margin-bottom: 20px;
+  }
+  .upload-box:hover { border-color: var(--accent); background: rgba(88,166,255,.04); }
+  .upload-box.loaded { border-style: solid; border-color: var(--accent); background: rgba(88,166,255,.08); }
+  .upload-icon { font-size: 36px; margin-bottom: 8px; }
+  .upload-hint { font-size: 13px; color: var(--muted); }
+  .upload-filename { font-size: 13px; color: var(--muted); margin-top: 8px; }
+  .upload-filename.loaded { color: var(--ok); }
+  input[type="file"] { display: none; }
+  .run-btn {
+    background: var(--accent); color: #0d1117; border: none; border-radius: 8px;
+    padding: 14px 44px; font-size: 16px; font-weight: 700; cursor: pointer;
+    opacity: .35; transition: opacity .2s;
+  }
+  .run-btn.ready          { opacity: 1; }
+  .run-btn.ready:hover    { background: #79c0ff; }
+
+  /* VIEWER */
+  #viewer-screen { display: none; }
+  header {
+    background: var(--panel); border-bottom: 1px solid var(--border);
+    padding: 14px 24px; display: flex; align-items: center; gap: 14px;
+    position: sticky; top: 0; z-index: 100;
+  }
+  header h1 { font-size: 17px; font-weight: 700; }
+  .header-right { margin-left: auto; display: flex; gap: 8px; }
+  .reload-btn {
+    background: transparent; color: var(--muted); border: 1px solid var(--border);
+    border-radius: 6px; padding: 5px 14px; font-size: 13px; cursor: pointer;
+  }
+  .reload-btn:hover { color: var(--text); border-color: var(--text); }
+  .print-btn {
+    background: var(--accent); color: #0d1117; border: none;
+    border-radius: 6px; padding: 5px 14px; font-size: 13px; font-weight: 700; cursor: pointer;
+  }
+
+  main { padding: 24px; max-width: 1100px; margin: 0 auto; }
+
+  .site-header {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 18px 24px; margin-bottom: 24px;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;
+  }
+  .site-item .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+  .site-item .val { font-size: 15px; font-weight: 700; color: var(--accent); margin-top: 2px; }
+
+  .section { margin-bottom: 32px; }
+  .section-title {
+    font-size: 13px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted); border-bottom: 1px solid var(--border);
+    padding-bottom: 8px; margin-bottom: 14px; display: flex; align-items: center; gap: 8px;
+  }
+
+  /* チェックテーブル */
+  .check-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .check-table th {
+    text-align: left; padding: 9px 14px; font-size: 12px;
+    text-transform: uppercase; letter-spacing: .07em; color: var(--muted);
+    border-bottom: 1px solid var(--border); background: var(--panel); white-space: nowrap;
+  }
+  .check-table td { padding: 10px 14px; border-bottom: 1px solid rgba(48,54,61,.5); vertical-align: middle; }
+  .check-table tr:hover td { background: rgba(255,255,255,.02); }
+
+  /* チェックボックスセル */
+  .chk-cell { width: 48px; text-align: center; }
+  .chk {
+    width: 22px; height: 22px; border: 2px solid var(--border);
+    border-radius: 5px; appearance: none; cursor: pointer;
+    background: var(--panel2); transition: background .15s, border-color .15s;
+    vertical-align: middle;
+  }
+  .chk:checked { background: var(--ok); border-color: var(--ok); }
+  .chk:checked::after { content: '✓'; color: #0d1117; font-weight: 900; font-size: 14px; display: flex; align-items: center; justify-content: center; height: 100%; }
+
+  /* NG入力 */
+  .ng-input {
+    background: transparent; border: none; border-bottom: 1px solid var(--border);
+    color: var(--ng); font-size: 13px; width: 100%; padding: 2px 4px;
+    font-family: inherit; outline: none;
+  }
+  .ng-input:focus { border-bottom-color: var(--ng); }
+  .ng-input::placeholder { color: rgba(248,81,73,.4); }
+
+  .val-accent { color: var(--accent); font-weight: 600; }
+  .val-muted  { color: var(--muted); }
+  .val-warn   { color: var(--warn); }
+
+  /* 凡例 */
+  .legend {
+    display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px;
+    padding: 10px 16px; background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; margin-bottom: 20px;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+
+  /* Claude自動判定ガイド */
+  .ai-guide {
+    background: var(--panel); border: 1px solid var(--border);
+    border-left: 3px solid var(--warn); border-radius: 8px;
+    padding: 18px 20px; margin-bottom: 28px; font-size: 13px;
+  }
+  .ai-guide h3 { font-size: 14px; font-weight: 700; color: var(--warn); margin-bottom: 10px; }
+  .ai-guide code {
+    display: block; background: var(--panel2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px 14px; margin: 8px 0;
+    font-family: 'Courier New', monospace; font-size: 12px; color: var(--text);
+    white-space: pre-wrap; word-break: break-all;
+  }
+  .guide-step { margin-bottom: 8px; }
+  .guide-num { color: var(--accent); font-weight: 700; margin-right: 6px; }
+
+  /* 印刷 */
+  @media print {
+    body { background: #fff; color: #000; font-size: 12px; }
+    header, .ai-guide, .print-btn, .reload-btn { display: none !important; }
+    .check-table th { background: #f0f0f0; color: #333; }
+    .check-table td { border-bottom: 1px solid #ddd; }
+    .val-accent { color: #0066cc; }
+    .section { page-break-inside: avoid; }
+    main { padding: 0; }
+  }
+</style>
+</head>
+<body>
+
+<!-- UPLOAD -->
+<div id="upload-screen">
+  <h1>📐 図面チェックリスト <span style="font-size:14px;font-weight:400;color:var(--muted);margin-left:8px">v1.0</span></h1>
+  <p>設計後（B側）の諸元JSONを読み込み<br>図面照合用チェックリストを生成します</p>
+  <div class="upload-box" id="upload-box"
+       onclick="document.getElementById('file-input').click()"
+       ondragover="onDrag(event)" ondragleave="onDragLeave()" ondrop="onDrop(event)">
+    <div class="upload-icon">📂</div>
+    <div style="font-weight:700;margin-bottom:4px">B側 諸元JSON（設計後）</div>
+    <div class="upload-hint">クリック または D&amp;D</div>
+    <div class="upload-filename" id="fname">ファイル未選択</div>
+  </div>
+  <input type="file" id="file-input" accept=".json" onchange="onFileInput(this)">
+  <button class="run-btn" id="run-btn" disabled onclick="run()">チェックリストを生成 →</button>
+</div>
+
+<!-- VIEWER -->
+<div id="viewer-screen">
+  <header>
+    <div>
+      <h1 id="hdr-title">📐 図面チェックリスト</h1>
+      <div style="font-size:12px;color:var(--muted);margin-top:1px" id="hdr-sub">—</div>
+    </div>
+    <div class="header-right">
+      <button class="print-btn" onclick="window.print()">🖨 印刷</button>
+      <button class="reload-btn" onclick="reset()">⟲ 再選択</button>
+    </div>
+  </header>
+  <main>
+
+    <!-- Claude自動判定ガイド -->
+    <div class="ai-guide">
+      <h3>🤖 Claude自動判定の使い方</h3>
+      <div class="guide-step"><span class="guide-num">①</span>図面PDFをスクリーンショット（SnippingTool等）で撮り <code>_ref/drawing.png</code> に保存</div>
+      <div class="guide-step"><span class="guide-num">②</span>諸元JSONを <code>_ref/B_actual_spec.json</code> に保存</div>
+      <div class="guide-step"><span class="guide-num">③</span>Cowork または Claude Code で以下のように依頼：</div>
+      <code>【Cowork】
+_ref/drawing.png と _ref/B_actual_spec.json を照合して
+アンテナの方位角・高さ・チルト・機種名に不一致がないか確認してください。
+
+【Claude Code (端末で実行)】
+cd 諸元差分ビューア
+claude
+→ 起動後に：
+「_ref/drawing.png と _ref/B_actual_spec.json を照合して、
+アンテナ・装置・セクターに不一致がないか指摘してください」</code>
+      <div class="guide-step"><span class="guide-num">④</span>下記チェックリストで残りを目視確認</div>
+    </div>
+
+    <!-- 局情報 -->
+    <div class="site-header" id="site-info"></div>
+
+    <div class="legend">
+      <span class="legend-item">☑ チェック済み</span>
+      <span class="legend-item">☐ 未チェック</span>
+      <span class="legend-item" style="color:var(--ng)">NG欄 → 不一致内容を記入</span>
+    </div>
+
+    <!-- アンテナ -->
+    <div class="section">
+      <div class="section-title">🔺 アンテナ</div>
+      <table class="check-table">
+        <thead><tr>
+          <th class="chk-cell">確認</th>
+          <th>ANT名</th><th>機種名</th>
+          <th>方位角(°)</th><th>高さ(m)</th><th>M-tilt(°)</th>
+          <th>対応バンド</th><th>緯度 / 経度</th>
+          <th>NG内容</th>
+        </tr></thead>
+        <tbody id="ant-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- セクターアンテナ（eTilt） -->
+    <div class="section">
+      <div class="section-title">📡 セクター × アンテナ（e-tilt）</div>
+      <table class="check-table">
+        <thead><tr>
+          <th class="chk-cell">確認</th>
+          <th>ネットワーク</th><th>バンド</th><th>セクター</th>
+          <th>ANT名</th><th>e-tilt(°)</th><th>アンテナ機種</th>
+          <th>NG内容</th>
+        </tr></thead>
+        <tbody id="sect-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- MU（無線機グループ） -->
+    <div class="section">
+      <div class="section-title">📻 無線機グループ (MU) ・装置</div>
+      <table class="check-table">
+        <thead><tr>
+          <th class="chk-cell">確認</th>
+          <th>MU名</th><th>RAN種別</th><th>バンド</th>
+          <th>装置名</th><th>装置機種名</th><th>BBU収容局</th>
+          <th>NG内容</th>
+        </tr></thead>
+        <tbody id="mu-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- RU -->
+    <div class="section">
+      <div class="section-title">📶 RU（無線機子機）× ポート</div>
+      <table class="check-table">
+        <thead><tr>
+          <th class="chk-cell">確認</th>
+          <th>ネットワーク</th><th>バンド</th>
+          <th>セクター</th><th>ポート</th>
+          <th>RU名</th><th>機種名</th><th>送受の別</th>
+          <th>NG内容</th>
+        </tr></thead>
+        <tbody id="ru-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- 電源 -->
+    <div class="section">
+      <div class="section-title">⚡ 電源情報</div>
+      <table class="check-table">
+        <thead><tr>
+          <th class="chk-cell">確認</th>
+          <th>局番号</th><th>バンド</th>
+          <th>受電方法</th><th>電源車接続</th><th>バッテリー</th>
+          <th>NG内容</th>
+        </tr></thead>
+        <tbody id="pow-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- 備考 -->
+    <div class="section">
+      <div class="section-title">📝 チェック備考欄</div>
+      <textarea style="width:100%;min-height:100px;background:var(--panel2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:14px;padding:12px;resize:vertical;outline:none" placeholder="図面チェック時の気づき・指摘事項を記録…"></textarea>
+    </div>
+
+  </main>
+</div>
+
+<script>
+let data = null;
+
+const PM = {'0101':'単相二線','0102':'単相三線','0103':'三相三線+単相二線','0104':'三相三線','0105':'その他','01':'三相三線+単相二線','02':'単相二線','03':'単相三線','04':'三相三線','05':'その他'};
+const BC = {'1':'なし','2':'有(UPS)','3':'有(24H以上)','4':'有(24H未満)','5':'その他'};
+const RK = {'1':'LTE','2':'5G NR','3':'3G'};
+const BD = {'01':'B1(2.1G)','02':'B19(800M)','03':'B8(900M)','04':'B3(1.7G)','05':'B11(1.5G)'};
+const sv = v => (v !== null && v !== undefined && v !== '') ? String(v) : '—';
+
+function onDrag(e)    { e.preventDefault(); document.getElementById('upload-box').style.borderColor='var(--accent)'; }
+function onDragLeave(){ document.getElementById('upload-box').style.borderColor=''; }
+function onDrop(e)    { e.preventDefault(); onDragLeave(); const f=e.dataTransfer.files[0]; if(f) readFile(f); }
+function onFileInput(inp){ if(inp.files[0]) readFile(inp.files[0]); }
+
+function readFile(file){
+  const r = new FileReader();
+  r.onload = e => {
+    try {
+      let t = e.target.result;
+      if(t.charCodeAt(0) === 0xFEFF) t = t.slice(1);
+      data = JSON.parse(t);
+      document.getElementById('upload-box').classList.add('loaded');
+      const fn = document.getElementById('fname');
+      fn.textContent = '✓ ' + file.name; fn.classList.add('loaded');
+      const btn = document.getElementById('run-btn');
+      btn.disabled = false; btn.classList.add('ready');
+    } catch(err){ alert('JSON解析エラー: ' + err.message); }
+  };
+  r.readAsText(file, 'utf-8');
+}
+
+function reset(){
+  data = null;
+  document.getElementById('upload-screen').style.display = 'flex';
+  document.getElementById('viewer-screen').style.display = 'none';
+  document.getElementById('upload-box').classList.remove('loaded');
+  const fn = document.getElementById('fname');
+  fn.textContent = 'ファイル未選択'; fn.classList.remove('loaded');
+  const btn = document.getElementById('run-btn'); btn.disabled = true; btn.classList.remove('ready');
+}
+
+function chkRow(){ return '<td class="chk-cell"><input type="checkbox" class="chk"></td>'; }
+function ngCell(){ return '<td><input type="text" class="ng-input" placeholder="NG内容"></td>'; }
+
+function run(){
+  document.getElementById('upload-screen').style.display = 'none';
+  document.getElementById('viewer-screen').style.display = 'block';
+
+  const sh  = data.responseBody.shared;
+  const hd  = data.responseBody.head;
+  const nets = data.responseBody.networks || [];
+  const site = sh.bases?.[0];
+  const siteName = `${site?.baseNameKanji || ''} ${site?.baseNumber || ''}`.trim();
+
+  document.title = siteName ? `📐 ${siteName}` : '図面チェックリスト';
+  document.getElementById('hdr-title').textContent = `📐 図面チェックリスト — ${siteName}`;
+  document.getElementById('hdr-sub').textContent = `${hd.siteId || ''} | ${sh.site?.area?.name || ''} | 諸元: ${hd.specNm || ''} / ${hd.specId || ''}`;
+
+  // --- 局情報 ---
+  const orders = (sh.orders || []).map(o => `${o.orderId}(${o.project?.name || ''})`).join(', ');
+  document.getElementById('site-info').innerHTML = [
+    ['局名',    siteName],
+    ['siteId',  hd.siteId || '—'],
+    ['エリア',  sh.site?.area?.name || '—'],
+    ['諸元ID',  `${hd.specNm || '—'} / ${hd.specId || '—'}`],
+    ['オーダー', orders || '—'],
+  ].map(([l,v]) => `<div class="site-item"><div class="lbl">${l}</div><div class="val">${v}</div></div>`).join('');
+
+  // --- アンテナ ---
+  // sectorAntennasから機種名マップを構築
+  const sectAntModels = {};
+  for(const net of nets)
+    for(const sa of (net.sectorAntennas || []))
+      if(sa.deviceIdName) sectAntModels[sa.deviceIdName] = sa.sectorAntennaDesign?.equipModelName || '';
+
+  const antennas = sh.antennas || [];
+  document.getElementById('ant-tbody').innerHTML = antennas.map(a => {
+    const model = sectAntModels[a.deviceIdName] || a.equipment?.equipModelName || '—';
+    const bands = (a.equipment?.beamWidths || []).map(b => BD[b.frequencyBand] || b.frequencyBand).join(', ') || '—';
+    return `<tr>
+      ${chkRow()}
+      <td class="val-accent">${a.deviceIdName}</td>
+      <td>${model}</td>
+      <td style="text-align:right">${sv(a.devAzimuth)}</td>
+      <td style="text-align:right">${sv(a.devHeight)}</td>
+      <td style="text-align:right">${sv(a.devMTilt)}</td>
+      <td class="val-muted" style="font-size:12px">${bands}</td>
+      <td class="val-muted" style="font-size:12px">${sv(a.devLatitudeDeg)}, ${sv(a.devLongitudeDeg)}</td>
+      ${ngCell()}
+    </tr>`;
+  }).join('') || '<tr><td colspan="9" class="val-muted" style="text-align:center;padding:16px">データなし</td></tr>';
+
+  // --- セクター × アンテナ ---
+  const sectRows = [];
+  for(const net of nets){
+    const band = net.frequencyBand?.name || '';
+    for(const sa of (net.sectorAntennas || [])){
+      const model = sa.sectorAntennaDesign?.equipModelName || '—';
+      sectRows.push(`<tr>
+        ${chkRow()}
+        <td class="val-muted" style="font-size:12px">${net.nwIdName}</td>
+        <td>${band}</td>
+        <td>Sec ${sa.sectorIdName}</td>
+        <td class="val-accent">${sa.deviceIdName || '—'}</td>
+        <td style="text-align:right;font-weight:600">${sv(sa.electricalTilt)}</td>
+        <td style="font-size:13px">${model}</td>
+        ${ngCell()}
+      </tr>`);
+    }
+  }
+  document.getElementById('sect-tbody').innerHTML = sectRows.join('') || '<tr><td colspan="8" class="val-muted" style="text-align:center;padding:16px">データなし</td></tr>';
+
+  // --- MU・装置 ---
+  // MU→バンド紐付け
+  const rgIdName = Object.fromEntries((sh.radioGroups || []).map(r => [r.radioGroupId, r.radioGroupIdName]));
+  const bandMap = {};
+  for(const net of nets){
+    const band = net.frequencyBand?.name || '';
+    for(const key of ['lteServiceBand','fivegServiceBand','wcdmaServiceBand']){
+      const rgId = net[key]?.radioGroupId;
+      if(rgId && rgIdName[rgId]){
+        const mu = rgIdName[rgId];
+        bandMap[mu] = bandMap[mu] ? bandMap[mu] + ' / ' + band : band;
+      }
+    }
+  }
+
+  const muRows = [];
+  for(const rg of (sh.radioGroups || [])){
+    const devs = rg.devices || [];
+    const band = bandMap[rg.radioGroupIdName] || '—';
+    const ran  = RK[rg.ranKindCd] || sv(rg.ranKindCd);
+    const bbu  = rg.bbuAccomGcBbt?.name || '—';
+    if(devs.length === 0){
+      muRows.push(`<tr>
+        ${chkRow()}
+        <td class="val-accent">${rg.radioGroupIdName}</td>
+        <td>${ran}</td><td>${band}</td>
+        <td class="val-muted">—</td><td class="val-muted">CRAN構成</td>
+        <td style="font-size:13px">${bbu}</td>
+        ${ngCell()}
+      </tr>`);
+    } else {
+      devs.forEach((d, i) => {
+        muRows.push(`<tr>
+          ${i === 0 ? chkRow() : '<td></td>'}
+          ${i === 0 ? `<td class="val-accent" rowspan="${devs.length}">${rg.radioGroupIdName}</td>` : ''}
+          ${i === 0 ? `<td rowspan="${devs.length}">${ran}</td>` : ''}
+          ${i === 0 ? `<td rowspan="${devs.length}">${band}</td>` : ''}
+          <td>${d.deviceName || '—'}</td>
+          <td style="font-size:13px">${d.equipment?.equipModelName || '—'}</td>
+          ${i === 0 ? `<td rowspan="${devs.length}" style="font-size:13px">${bbu}</td>` : ''}
+          ${ngCell()}
+        </tr>`);
+      });
+    }
+  }
+  document.getElementById('mu-tbody').innerHTML = muRows.join('') || '<tr><td colspan="8" class="val-muted" style="text-align:center;padding:16px">データなし</td></tr>';
+
+  // --- RU × ポート ---
+  const ruRows = [];
+  for(const net of nets){
+    const band = net.frequencyBand?.name || '';
+    for(const sp of (net.sectorPorts || [])){
+      ruRows.push(`<tr>
+        ${chkRow()}
+        <td class="val-muted" style="font-size:12px">${net.nwIdName}</td>
+        <td>${band}</td>
+        <td>Sec ${sp.sectorIdName}</td>
+        <td style="text-align:center">${sv(sp.portNo)}</td>
+        <td class="val-accent">${sv(sp.deviceIdName)}</td>
+        <td style="font-size:13px">${sv(sp.equipModelName)}</td>
+        <td class="val-muted" style="font-size:12px">${sv(sp.transReceiveClsName)}</td>
+        ${ngCell()}
+      </tr>`);
+    }
+  }
+  document.getElementById('ru-tbody').innerHTML = ruRows.join('') || '<tr><td colspan="9" class="val-muted" style="text-align:center;padding:16px">データなし</td></tr>';
+
+  // --- 電源 ---
+  document.getElementById('pow-tbody').innerHTML = (sh.bases || []).map(b => {
+    const ps = b.powerSupply || {};
+    return `<tr>
+      ${chkRow()}
+      <td class="val-accent">${b.baseNumber}</td>
+      <td>${b.frequencyBand?.name || '—'}</td>
+      <td>${PM[ps.powerIncomingMethod] || sv(ps.powerIncomingMethod)}</td>
+      <td>${ps.powerSupplyBehiclesFlg === '1' ? '可' : '不可'}</td>
+      <td>${BC[String(ps.battCls)] || sv(ps.battCls)}</td>
+      ${ngCell()}
+    </tr>`;
+  }).join('') || '<tr><td colspan="7" class="val-muted" style="text-align:center;padding:16px">データなし</td></tr>';
+}
+</script>
+</body>
+</html>

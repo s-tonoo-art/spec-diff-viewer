@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>諸元入力チェッカー v1.0</title>
+<style>
+  :root {
+    --bg:      #0d1117;
+    --panel:   #161b22;
+    --panel2:  #1c2128;
+    --border:  #30363d;
+    --text:    #e6edf3;
+    --muted:   #8b949e;
+    --a-color: #58a6ff;
+    --b-color: #f85149;
+    --ok:      #3fb950;
+    --warn:    #e3b341;
+    --chg:     #d2a8ff;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Hiragino Kaku Gothic ProN','Meiryo',sans-serif;font-size:14px;line-height:1.6}
+
+  /* UPLOAD */
+  #upload-screen{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px}
+  #upload-screen h1{font-size:22px;font-weight:700;margin-bottom:6px}
+  #upload-screen p{color:var(--muted);margin-bottom:28px;font-size:13px;text-align:center}
+  .upload-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;width:100%;max-width:640px;margin-bottom:24px}
+  .upload-box{background:var(--panel);border:2px dashed var(--border);border-radius:12px;padding:24px 16px;text-align:center;cursor:pointer;transition:.2s}
+  .upload-box.a-side{border-color:rgba(88,166,255,.4)}
+  .upload-box.b-side{border-color:rgba(248,81,73,.4)}
+  .upload-box.a-side:hover,.upload-box.a-side.drag-over{border-color:var(--a-color);background:rgba(88,166,255,.05)}
+  .upload-box.b-side:hover,.upload-box.b-side.drag-over{border-color:var(--b-color);background:rgba(248,81,73,.05)}
+  .upload-box.loaded.a-side{border-style:solid;border-color:var(--a-color);background:rgba(88,166,255,.08)}
+  .upload-box.loaded.b-side{border-style:solid;border-color:var(--b-color);background:rgba(248,81,73,.08)}
+  .upload-lbl{font-size:12px;font-weight:700;letter-spacing:.08em;margin-bottom:6px}
+  .upload-lbl.a{color:var(--a-color)} .upload-lbl.b{color:var(--b-color)}
+  .upload-fn{font-size:12px;color:var(--muted);margin-top:6px}
+  .upload-fn.loaded{color:var(--ok)}
+  input[type=file]{display:none}
+  .run-btn{background:var(--a-color);color:#0d1117;border:none;border-radius:8px;padding:13px 40px;font-size:15px;font-weight:700;cursor:pointer;opacity:.35;transition:.2s}
+  .run-btn.ready{opacity:1}.run-btn.ready:hover{background:#79c0ff}
+
+  /* VIEWER */
+  #viewer-screen{display:none}
+  header{background:var(--panel);border-bottom:1px solid var(--border);padding:12px 20px;position:sticky;top:0;z-index:100;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  header h1{font-size:16px;font-weight:700}
+  .hdr-sub{font-size:12px;color:var(--muted)}
+  .hdr-right{margin-left:auto;display:flex;gap:8px}
+  .btn-sm{border:1px solid var(--border);background:transparent;color:var(--muted);border-radius:6px;padding:4px 12px;font-size:12px;cursor:pointer}
+  .btn-sm:hover{color:var(--text);border-color:var(--text)}
+  .btn-print{background:var(--a-color);color:#0d1117;border:none;border-radius:6px;padding:4px 14px;font-size:12px;font-weight:700;cursor:pointer}
+
+  main{padding:20px;max-width:1200px;margin:0 auto}
+
+  /* 凡例 */
+  .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;padding:8px 14px;background:var(--panel);border:1px solid var(--border);border-radius:8px;margin-bottom:20px}
+  .leg{display:flex;align-items:center;gap:5px;color:var(--muted)}
+  .dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+  .dot-chg{background:var(--ok)}
+  .dot-same{background:var(--muted)}
+  .dot-empty{background:var(--warn)}
+  .dot-na{background:var(--border)}
+
+  /* 局ヘッダー */
+  .site-card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin-bottom:20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+  .si-lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em}
+  .si-val{font-size:14px;font-weight:700;color:var(--a-color);margin-top:2px}
+
+  /* セクション */
+  .section{margin-bottom:28px}
+  .sec-title{font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border);padding-bottom:8px;margin-bottom:12px}
+
+  /* チェックテーブル */
+  .ck-table{width:100%;border-collapse:collapse;font-size:13px}
+  .ck-table th{text-align:left;padding:8px 12px;font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);border-bottom:1px solid var(--border);background:var(--panel);white-space:nowrap}
+  .ck-table td{padding:8px 12px;border-bottom:1px solid rgba(48,54,61,.4);vertical-align:middle}
+  .ck-table tr:hover td{background:rgba(255,255,255,.02)}
+
+  /* 値セル */
+  .v-chg{color:var(--ok);font-weight:600}   /* B入力済・A→B変更あり */
+  .v-same{color:var(--text)}                 /* B入力済・変更なし */
+  .v-empty{color:var(--warn);font-style:italic}  /* 未入力 */
+  .v-na{color:var(--border)}                 /* N/A */
+  .v-a{color:var(--a-color)}                 /* A値 */
+
+  /* 状態バッジ */
+  .badge{display:inline-flex;align-items:center;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap}
+  .badge-chg {background:rgba(63,185,80,.15);color:var(--ok);border:1px solid rgba(63,185,80,.4)}
+  .badge-same{background:rgba(139,148,158,.1);color:var(--muted);border:1px solid rgba(139,148,158,.3)}
+  .badge-empty{background:rgba(227,179,65,.15);color:var(--warn);border:1px solid rgba(227,179,65,.4)}
+  .badge-na   {background:rgba(48,54,61,.3);color:var(--border);border:1px solid var(--border)}
+
+  /* サブテーブル（MU/ANT繰り返し） */
+  .sub-label{font-size:12px;font-weight:700;color:var(--muted);margin:10px 0 6px;padding-left:4px}
+
+  @media print{
+    body{background:#fff;color:#000;font-size:11px}
+    header,.btn-sm,.btn-print{display:none!important}
+    .ck-table th{background:#f5f5f5;color:#444}
+    .ck-table td{border-bottom:1px solid #ddd}
+    main{padding:0}
+  }
+</style>
+</head>
+<body>
+
+<!-- UPLOAD -->
+<div id="upload-screen">
+  <h1>🔍 諸元入力チェッカー <span style="font-size:13px;font-weight:400;color:var(--muted);margin-left:8px">v1.0</span></h1>
+  <p>施工会社担当項目の入力状況を A/B 比較で確認するツールです</p>
+  <div class="upload-grid">
+    <div class="upload-box a-side" id="box-a" onclick="document.getElementById('file-a').click()"
+         ondragover="dOver(event,'a')" ondragleave="dLeave('a')" ondrop="dDrop(event,'A')">
+      <div class="upload-lbl a">A — 現行諸元</div>
+      <div style="font-size:11px;color:var(--muted)">クリック または D&D</div>
+      <div class="upload-fn" id="fn-a">未選択</div>
+    </div>
+    <input type="file" id="file-a" accept=".json" onchange="onFile(this,'A')">
+    <div class="upload-box b-side" id="box-b" onclick="document.getElementById('file-b').click()"
+         ondragover="dOver(event,'b')" ondragleave="dLeave('b')" ondrop="dDrop(event,'B')">
+      <div class="upload-lbl b">B — 今回PJ反映後</div>
+      <div style="font-size:11px;color:var(--muted)">クリック または D&D</div>
+      <div class="upload-fn" id="fn-b">未選択</div>
+    </div>
+    <input type="file" id="file-b" accept=".json" onchange="onFile(this,'B')">
+  </div>
+  <button class="run-btn" id="run-btn" disabled onclick="run()">チェックリストを生成 →</button>
+</div>
+
+<!-- VIEWER -->
+<div id="viewer-screen">
+  <header>
+    <div>
+      <h1 id="hdr-title">🔍 諸元入力チェッカー</h1>
+      <div class="hdr-sub" id="hdr-sub">—</div>
+    </div>
+    <div class="hdr-right">
+      <button class="btn-print" onclick="window.print()">🖨 印刷</button>
+      <button class="btn-sm" onclick="resetView()">⟲ 再選択</button>
+    </div>
+  </header>
+  <main>
+    <div class="legend">
+      <span class="leg"><span class="dot dot-chg"></span>B入力済・A→B変更あり</span>
+      <span class="leg"><span class="dot dot-same"></span>B入力済・変更なし</span>
+      <span class="leg"><span class="dot dot-empty"></span>未入力（ケースバイケース）</span>
+      <span class="leg"><span class="dot dot-na"></span>データなし</span>
+    </div>
+
+    <div class="site-card" id="site-card"></div>
+
+    <!-- ① サイト情報 -->
+    <div class="section">
+      <div class="sec-title">① サイト情報</div>
+      <table class="ck-table">
+        <thead><tr><th>項目</th><th style="color:var(--a-color)">A 現行値</th><th style="color:var(--b-color)">B 今回値</th><th>状態</th></tr></thead>
+        <tbody id="site-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- ② 電源情報（基地局リスト） -->
+    <div class="section">
+      <div class="sec-title">② 電源情報（基地局リスト）</div>
+      <table class="ck-table">
+        <thead><tr><th>局番号</th><th>項目</th><th style="color:var(--a-color)">A 現行値</th><th style="color:var(--b-color)">B 今回値</th><th>状態</th></tr></thead>
+        <tbody id="pow-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- ③ 無線機グループ（MUごと） -->
+    <div class="section">
+      <div class="sec-title">③ 無線機グループ — アラームパターン</div>
+      <table class="ck-table">
+        <thead><tr><th>MU名</th><th>項目</th><th style="color:var(--a-color)">A 現行値</th><th style="color:var(--b-color)">B 今回値</th><th>状態</th></tr></thead>
+        <tbody id="mu-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- ④ 付帯デバイス -->
+    <div class="section">
+      <div class="sec-title">④ 付帯デバイス (Ancillary)</div>
+      <table class="ck-table">
+        <thead><tr><th>デバイスID</th><th style="color:var(--a-color)">A 機種名</th><th style="color:var(--b-color)">B 機種名</th><th>状態</th></tr></thead>
+        <tbody id="anc-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- ⑤ アンテナ付属機器（セクターアンテナごと） -->
+    <div class="section">
+      <div class="sec-title">⑤ アンテナ付属機器情報（sectorAntennaAncillary）</div>
+      <table class="ck-table">
+        <thead><tr>
+          <th>ネットワーク</th><th>セクター</th><th>ANT名</th><th>項目</th>
+          <th style="color:var(--a-color)">A 現行値</th>
+          <th style="color:var(--b-color)">B 今回値</th>
+          <th>状態</th>
+        </tr></thead>
+        <tbody id="ant-tbody"></tbody>
+      </table>
+    </div>
+
+  </main>
+</div>
+
+<script>
+let dataA=null, dataB=null;
+
+const PM={'0101':'単相二線','0102':'単相三線','0103':'三相三線+単相二線','0104':'三相三線','0105':'その他','01':'三相三線+単相二線','02':'単相二線','03':'単相三線','04':'三相三線','05':'その他'};
+const BC={'1':'なし','2':'有(UPS)','3':'有(24H以上)','4':'有(24H未満)','5':'その他'};
+const FLAG={'0':'なし','1':'あり'};
+const sv=v=>(v!==null&&v!==undefined&&v!=='')?String(v):'';
+
+// D&D
+function dOver(e,s){e.preventDefault();document.getElementById('box-'+s).classList.add('drag-over')}
+function dLeave(s){document.getElementById('box-'+s).classList.remove('drag-over')}
+function dDrop(e,slot){e.preventDefault();dLeave(slot.toLowerCase());const f=e.dataTransfer.files[0];if(f)readFile(f,slot)}
+function onFile(inp,slot){if(inp.files[0])readFile(inp.files[0],slot)}
+function readFile(file,slot){
+  const r=new FileReader();
+  r.onload=e=>{
+    try{
+      let t=e.target.result;
+      if(t.charCodeAt(0)===0xFEFF)t=t.slice(1);
+      const j=JSON.parse(t);
+      const s=slot.toLowerCase();
+      if(slot==='A'){dataA=j;}else{dataB=j;}
+      document.getElementById('box-'+s).classList.add('loaded');
+      const fn=document.getElementById('fn-'+s);
+      fn.textContent='✓ '+file.name;fn.classList.add('loaded');
+      checkReady();
+    }catch(err){alert('JSON解析エラー: '+err.message);}
+  };
+  r.readAsText(file,'utf-8');
+}
+function checkReady(){
+  const b=document.getElementById('run-btn');
+  if(dataA&&dataB){b.disabled=false;b.classList.add('ready');}
+}
+function resetView(){
+  dataA=dataB=null;
+  document.getElementById('upload-screen').style.display='flex';
+  document.getElementById('viewer-screen').style.display='none';
+  ['a','b'].forEach(s=>{
+    document.getElementById('box-'+s).classList.remove('loaded','drag-over');
+    const fn=document.getElementById('fn-'+s);fn.textContent='未選択';fn.classList.remove('loaded');
+  });
+  const b=document.getElementById('run-btn');b.disabled=true;b.classList.remove('ready');
+}
+
+// 状態バッジ
+function badge(vA,vB){
+  const ea=!sv(vA),eb=!sv(vB);
+  if(eb) return '<span class="badge badge-empty">未入力</span>';
+  if(vA===vB) return '<span class="badge badge-same">変更なし</span>';
+  return '<span class="badge badge-chg">変更あり</span>';
+}
+// B値の色クラス
+function bCls(vA,vB){
+  const eb=!sv(vB);
+  if(eb) return 'v-empty';
+  if(vA===vB) return 'v-same';
+  return 'v-chg';
+}
+function disp(v,map){
+  const s=sv(v);
+  if(!s) return '—';
+  return map?((map[s]||s)):s;
+}
+function dispB(vA,vB,map){
+  const s=sv(vB);
+  if(!s) return '<span class="v-empty">（未入力）</span>';
+  const label=map?(map[s]||s):s;
+  return `<span class="${bCls(sv(vA),s)}">${label}</span>`;
+}
+
+function run(){
+  document.getElementById('upload-screen').style.display='none';
+  document.getElementById('viewer-screen').style.display='block';
+
+  const shA=dataA.responseBody.shared, shB=dataB.responseBody.shared;
+  const hdA=dataA.responseBody.head,   hdB=dataB.responseBody.head;
+  const nA=dataA.responseBody.networks||[], nB=dataB.responseBody.networks||[];
+  const siteBase=shA.bases?.[0];
+  const siteName=`${siteBase?.baseNameKanji||''} ${siteBase?.baseNumber||''}`.trim();
+
+  document.title=`🔍 ${siteName||'諸元入力チェッカー'}`;
+  document.getElementById('hdr-title').textContent=`🔍 諸元入力チェッカー — ${siteName}`;
+  document.getElementById('hdr-sub').textContent=
+    `siteId: ${hdA.siteId||'—'} | エリア: ${shA.site?.area?.name||'—'} | 諸元(A): ${hdA.specNm||'—'} → (B): ${hdB.specNm||'—'}`;
+
+  // 局カード
+  const orders=(shB.orders||[]).map(o=>`${o.orderId}(${o.project?.name||''})`).join(', ');
+  document.getElementById('site-card').innerHTML=[
+    ['局名',siteName],['siteId',hdA.siteId||'—'],
+    ['エリア',shA.site?.area?.name||'—'],
+    ['諸元B',`${hdB.specNm||'—'} / ${hdB.specId||'—'}`],
+    ['オーダー',orders||'—'],
+  ].map(([l,v])=>`<div><div class="si-lbl">${l}</div><div class="si-val">${v}</div></div>`).join('');
+
+  // ─────────────────────────────────
+  // ① サイト情報
+  // ─────────────────────────────────
+  const sA=shA.site||{}, sB=shB.site||{};
+  const adA=sA.address||{}, adB=sB.address||{};
+  const blA=sA.billding||{}, blB=sB.billding||{};
+  const bnA=sA.billdingName||{}, bnB=sB.billdingName||{};
+  const nbA=sA.nearBy||{}, nbB=sB.nearBy||{};
+  const degA=sA.degree||{}, degB=sB.degree||{};
+
+  const siteRows=[
+    ['緯度（北緯）', degA.latitudeDeg, degB.latitudeDeg],
+    ['経度（東経）', degA.longitudeDeg, degB.longitudeDeg],
+    ['詳細住所（漢字）', adA.detailAddressNm, adB.detailAddressNm],
+    ['詳細住所（カナ）', adA.detailAddressKana, adB.detailAddressKana],
+    ['物件名称（漢字）', bnA.propertyNm, bnB.propertyNm],
+    ['物件名称（カナ）', bnA.propertyKana, bnB.propertyKana],
+    ['GL（m）', blA.groundLevel, blB.groundLevel],
+    ['塩害フラグ', blA.saltDamageFlg, blB.saltDamageFlg, FLAG],
+    ['多雷フラグ', blA.multiThunderFlg, blB.multiThunderFlg, FLAG],
+    ['積雪深（cm）', blA.snowDepth, blB.snowDepth],
+    ['物件種別', blA.propertyKind?.name, blB.propertyKind?.name],
+    ['併設：docomo', nbA.nearbyCdDocomo, nbB.nearbyCdDocomo, FLAG],
+    ['併設：KDDI', nbA.nearbyCdKddi, nbB.nearbyCdKddi, FLAG],
+    ['併設：UQ', nbA.nearbyCdUq, nbB.nearbyCdUq, FLAG],
+    ['併設：楽天', nbA.nearbyCdRakuten, nbB.nearbyCdRakuten, FLAG],
+    ['併設：その他', nbA.nearbyCdOther, nbB.nearbyCdOther, FLAG],
+    ['他事業者名', nbA.nearbyOperatorNm, nbB.nearbyOperatorNm],
+  ];
+  document.getElementById('site-tbody').innerHTML=siteRows.map(([lbl,vA,vB,map])=>`<tr>
+    <td style="color:var(--muted)">${lbl}</td>
+    <td class="v-a">${disp(vA,map)||'—'}</td>
+    <td>${dispB(vA,vB,map)}</td>
+    <td>${badge(sv(vA),sv(vB))}</td>
+  </tr>`).join('');
+
+  // ─────────────────────────────────
+  // ② 電源情報
+  // ─────────────────────────────────
+  const mapBaseA=Object.fromEntries((shA.bases||[]).map(b=>[b.baseNumber,b]));
+  const mapBaseB=Object.fromEntries((shB.bases||[]).map(b=>[b.baseNumber,b]));
+  const allBases=[...new Set([...Object.keys(mapBaseA),...Object.keys(mapBaseB)])];
+  const powItems=[
+    ['受電方法', b=>b?.powerSupply?.powerIncomingMethod, PM],
+    ['電源車接続', b=>b?.powerSupply?.powerSupplyBehiclesFlg, {'0':'不可','1':'可'}],
+    ['バッテリー有無', b=>b?.powerSupply?.battCls, BC],
+  ];
+  document.getElementById('pow-tbody').innerHTML=allBases.flatMap(bn=>{
+    const bA=mapBaseA[bn], bB=mapBaseB[bn];
+    return powItems.map(([lbl,getter,map],i)=>{
+      const vA=sv(getter(bA)), vB=sv(getter(bB));
+      return `<tr>
+        ${i===0?`<td rowspan="${powItems.length}" style="color:var(--a-color);font-weight:700">${bn}</td>`:''}
+        <td style="color:var(--muted)">${lbl}</td>
+        <td class="v-a">${disp(vA,map)||'—'}</td>
+        <td>${dispB(vA,vB,map)}</td>
+        <td>${badge(vA,vB)}</td>
+      </tr>`;
+    });
+  }).join('');
+
+  // ─────────────────────────────────
+  // ③ MUアラームパターン
+  // ─────────────────────────────────
+  const mapMuA=Object.fromEntries((shA.radioGroups||[]).map(r=>[r.radioGroupIdName,r]));
+  const mapMuB=Object.fromEntries((shB.radioGroups||[]).map(r=>[r.radioGroupIdName,r]));
+  const allMU=[...new Set([...Object.keys(mapMuA),...Object.keys(mapMuB)])];
+  const muItems=[
+    ['アラームパターン(L)', r=>r?.alarmPatternL],
+    ['アラームパターン(W)', r=>r?.alarmPatternW],
+    ['アラームパターン(5G)', r=>r?.alarmPatternFiveg],
+    ['アラーム取得セクタ_L', r=>r?.primaryL?.name],
+    ['アラーム取得セクタ_5G', r=>r?.primaryFiveg?.name],
+  ];
+  document.getElementById('mu-tbody').innerHTML=allMU.flatMap(mu=>{
+    const rA=mapMuA[mu], rB=mapMuB[mu];
+    return muItems.map(([lbl,getter],i)=>{
+      const vA=sv(getter(rA)), vB=sv(getter(rB));
+      return `<tr>
+        ${i===0?`<td rowspan="${muItems.length}" style="color:var(--a-color);font-weight:700">${mu}</td>`:''}
+        <td style="color:var(--muted)">${lbl}</td>
+        <td class="v-a">${vA||'—'}</td>
+        <td>${dispB(vA,vB)}</td>
+        <td>${badge(vA,vB)}</td>
+      </tr>`;
+    });
+  }).join('');
+
+  // ─────────────────────────────────
+  // ④ 付帯デバイス
+  // ─────────────────────────────────
+  const ancA=shA.ancillaries||[], ancB=shB.ancillaries||[];
+  const ancMapA=Object.fromEntries(ancA.map(a=>[a.deviceIdName,a]));
+  const ancMapB=Object.fromEntries(ancB.map(a=>[a.deviceIdName,a]));
+  const allAnc=[...new Set([...ancA.map(a=>a.deviceIdName),...ancB.map(a=>a.deviceIdName)])].sort();
+  document.getElementById('anc-tbody').innerHTML=(allAnc.length?allAnc.map(id=>{
+    const aA=ancMapA[id], aB=ancMapB[id];
+    const vA=sv(aA?.equipment?.equipModelName), vB=sv(aB?.equipment?.equipModelName);
+    return `<tr>
+      <td style="color:var(--muted)">${id}</td>
+      <td class="v-a">${vA||'—'}</td>
+      <td>${dispB(vA,vB)}</td>
+      <td>${badge(vA,vB)}</td>
+    </tr>`;
+  }).join(''):'<tr><td colspan="4" class="v-na" style="text-align:center;padding:14px">付帯デバイスなし</td></tr>');
+
+  // ─────────────────────────────────
+  // ⑤ アンテナ付属機器
+  // ─────────────────────────────────
+  // B側のsectorAntenna ancillaryマップ
+  function buildSaMap(nets){
+    const m={};
+    for(const net of nets){
+      for(const sa of (net.sectorAntennas||[])){
+        const key=`${net.nwIdName}__${sa.sectorIdName}`;
+        m[key]={nw:net.nwIdName,band:net.frequencyBand?.name||'',sec:sa.sectorIdName,ant:sa.deviceIdName,anc:sa.sectorAntennaAncillary||{}};
+      }
+    }
+    return m;
+  }
+  const saMapA=buildSaMap(nA), saMapB=buildSaMap(nB);
+  const allSaKeys=[...new Set([...Object.keys(saMapA),...Object.keys(saMapB)])].sort();
+  const ancItems=[
+    ['RETシリアル', a=>a?.retSerial],
+    ['TMA(MHA)/フィルタ型式', a=>a?.mha?.equipModelName],
+    ['キャンセラ型式', a=>a?.canceller?.equipModelName],
+    ['Bias-T型式', a=>a?.biasTEquipId?.equipModelName],
+    ['RET設置パターン', a=>a?.retInstallationPatternName||a?.retInstallationPattern],
+    ['制御インプット', a=>a?.controlInputName||a?.controlInput],
+  ];
+  const antRows=allSaKeys.flatMap(key=>{
+    const saA=saMapA[key], saB=saMapB[key];
+    const ref=saB||saA;
+    return ancItems.map(([lbl,getter],i)=>{
+      const vA=sv(getter(saA?.anc)), vB=sv(getter(saB?.anc));
+      return `<tr>
+        ${i===0?`<td rowspan="${ancItems.length}" class="v-na" style="font-size:12px">${ref.nw}<br><span style="font-size:11px;color:var(--muted)">${ref.band}</span></td>`:''}
+        ${i===0?`<td rowspan="${ancItems.length}" style="color:var(--a-color);font-weight:700">Sec ${ref.sec}</td>`:''}
+        ${i===0?`<td rowspan="${ancItems.length}" style="color:var(--muted)">${ref.ant}</td>`:''}
+        <td style="color:var(--muted)">${lbl}</td>
+        <td class="v-a">${vA||'—'}</td>
+        <td>${dispB(vA,vB)}</td>
+        <td>${badge(vA,vB)}</td>
+      </tr>`;
+    });
+  });
+  document.getElementById('ant-tbody').innerHTML=antRows.length
+    ? antRows.join('')
+    : '<tr><td colspan="7" class="v-na" style="text-align:center;padding:14px">データなし</td></tr>';
+}
+</script>
+</body>
+</html>
