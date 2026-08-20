@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>諸元差分ビューア v3.6</title>
+<title>諸元差分ビューア v3.7</title>
 <style>
   :root {
     --bg:     #0d1117;
@@ -303,7 +303,7 @@
 
 <!-- UPLOAD -->
 <div id="upload-screen">
-  <h1>📡 諸元差分ビューア <span style="font-size:14px;font-weight:400;color:var(--muted);margin-left:8px">v3.6</span></h1>
+  <h1>📡 諸元差分ビューア <span style="font-size:14px;font-weight:400;color:var(--muted);margin-left:8px">v3.7</span></h1>
   <p>A（現行）とB（今回PJ反映後）のJSONを<br>クリックまたはドラッグ＆ドロップで選択</p>
   <p style="font-size:12px;color:var(--muted);margin-top:-16px;margin-bottom:24px">このビューアーは、差分をシンプルに見せます。複雑なのは業務であって、画面までそうである必要はありません。</p>
   <div class="upload-grid">
@@ -337,7 +337,7 @@
       <h1 id="hdr-title">📡 諸元差分ビューア</h1>
       <div class="subtitle" id="hdr-sub">—</div>
       <div style="font-size:11px;color:var(--muted);margin-top:2px;display:flex;align-items:center;gap:8px">
-        <span>v3.6</span>
+        <span>v3.7</span>
         <button onclick="toggleChangelog()" style="font-size:10px;padding:1px 7px;background:rgba(255,255,255,.07);border:1px solid var(--border);border-radius:4px;color:var(--muted);cursor:pointer">変更履歴</button>
       </div>
     </div>
@@ -365,7 +365,8 @@
           <td style="padding:2px 12px 4px 0;white-space:nowrap">バージョン</td>
           <td style="padding:2px 0 4px">内容</td>
         </tr>
-        <tr><td style="padding:4px 12px 2px 0;color:var(--c-new);white-space:nowrap;vertical-align:top">v3.6</td><td style="padding:4px 0 2px">サマリーのアラームパターン表示を削除／印刷ページ区切りを動的制御（収まるなら改ページ解除）／MU装置チップをdeviceId単位で色判定に修正（既設は無色、機種変更は紫、片側のみ青赤）</td></tr>
+        <tr><td style="padding:4px 12px 2px 0;color:var(--c-new);white-space:nowrap;vertical-align:top">v3.7</td><td style="padding:4px 0 2px">ヘッダーのタイトル横に緯度経度（度分秒）・標高を表示（A側 site.degree / site.billding.groundLevel、A側が無ければB側にフォールバック）</td></tr>
+        <tr><td style="padding:4px 12px 2px 0;color:var(--muted);white-space:nowrap;vertical-align:top">v3.6</td><td style="padding:4px 0 2px">サマリーのアラームパターン表示を削除／印刷ページ区切りを動的制御（収まるなら改ページ解除）／MU装置チップをdeviceId単位で色判定に修正（既設は無色、機種変更は紫、片側のみ青赤）</td></tr>
         <tr><td style="padding:4px 12px 2px 0;color:var(--muted);white-space:nowrap;vertical-align:top">v3.5</td><td style="padding:4px 0 2px">印刷ボタン追加（A4横・余白最小化）／印刷時ダークテーマを白背景に自動変換／不要UI非表示・ページ区切り最適化</td></tr>
         <tr><td style="padding:4px 12px 2px 0;color:var(--muted);white-space:nowrap;vertical-align:top">v3.4</td><td style="padding:4px 0 2px">①サマリー諸元ID/オーダーをB値のみ表示に変更／②MU装置チップをA=青(撤去色)・B=赤(新設色)で固定／③サマリーアンテナをB側機種名(sectorAntennaDesign)から取得／④RU機種変更時にA=青・B=赤で色付け、削除/追加カウントに機種変更RUも含める</td></tr>
         <tr><td style="padding:4px 12px 2px 0;color:var(--muted);white-space:nowrap;vertical-align:top">v3.3</td><td style="padding:4px 0 2px">ブラウザタブに局名・局番号を表示（複数タブ利用時の判別対応）</td></tr>
@@ -544,6 +545,18 @@ function stBdg(inA,inB,chg){
 }
 function numSort(a,b){return parseInt(a.replace(/\D/g,''))-parseInt(b.replace(/\D/g,''));}
 
+// 十進度 → 度分秒（DMS）文字列。isLat=true で N/S、false で E/W を付与。
+function toDMS(deg,isLat){
+  if(deg===null||deg===undefined||deg===''||isNaN(deg)) return null;
+  const dir=isLat?(deg>=0?'N':'S'):(deg>=0?'E':'W');
+  const abs=Math.abs(deg);
+  const d=Math.floor(abs);
+  const mFloat=(abs-d)*60;
+  const m=Math.floor(mFloat);
+  const s=(mFloat-m)*60;
+  return `${d}°${String(m).padStart(2,'0')}'${s.toFixed(1)}"${dir}`;
+}
+
 function runDiff(){
   document.getElementById('upload-screen').style.display='none';
   document.getElementById('viewer-screen').style.display='block';
@@ -552,8 +565,18 @@ function runDiff(){
   const modA=getRuMod(dataA),modB=getRuMod(dataB);
   const site=shA.bases?.[0];
   const siteName=`${site?.baseNameKanji||''} ${site?.baseNumber||''}`.trim();
-  document.getElementById('hdr-title').textContent=`📡 諸元差分ビューア — ${siteName}`;
   document.title=siteName ? `📡 ${siteName}` : '諸元差分ビューア v3';
+  // 緯度経度・標高（A側優先、無ければB側にフォールバック）
+  const siteGeoA=shA.site||{},siteGeoB=shB.site||{};
+  const siteGeo=(siteGeoA.degree?.latitudeDeg!=null)?siteGeoA:siteGeoB;
+  const latDms=toDMS(siteGeo.degree?.latitudeDeg,true);
+  const lonDms=toDMS(siteGeo.degree?.longitudeDeg,false);
+  const elevation=siteGeo.billding?.groundLevel;
+  const geoParts=[];
+  if(latDms&&lonDms) geoParts.push(`${latDms} ${lonDms}`);
+  if(elevation!==null&&elevation!==undefined&&elevation!=='') geoParts.push(`標高 ${elevation}m`);
+  const geoHtml=geoParts.length?` <span style="font-size:13px;font-weight:400;color:var(--muted);margin-left:8px">${geoParts.join(' ／ ')}</span>`:'';
+  document.getElementById('hdr-title').innerHTML=`📡 諸元差分ビューア — ${siteName}${geoHtml}`;
   document.getElementById('hdr-sub').textContent=`${hdA.siteId||''} | ${shA.site?.area?.name||''} | ${shA.site?.address?.detailAddressNm||''}`;
   document.getElementById('hdr-badge-a').textContent='A: '+fnameA;
   document.getElementById('hdr-badge-b').textContent='B: '+fnameB;
